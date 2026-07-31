@@ -8,7 +8,7 @@ export default function TabsLayout() {
   const segments = useSegments();
 
   // Hide tab bar on nested details pages
-  const subScreens = ["oft", "assessments", "notifications", "review", "report", "request", "chat", "activation", "data-use"];
+  const subScreens = ["oft", "assessments", "notifications", "review", "report", "request", "chat", "activation", "data-use", "records", "uploads", "add-record", "record-detail", "log-workout", "workout-saved", "workouts", "flyaway"];
   const isSubscreen = segments.some((seg) => subScreens.includes(seg));
 
   return (
