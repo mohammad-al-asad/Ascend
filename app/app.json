@@ -27,7 +27,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#208AEF",
+          "backgroundColor": "#161618",
           "image": "./assets/app/logo.png",
           "imageWidth": 76
         }
@@ -36,6 +36,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "fcd5027f-7556-4803-82ce-8b0b3748aaa8"
+      }
     }
   }
 }

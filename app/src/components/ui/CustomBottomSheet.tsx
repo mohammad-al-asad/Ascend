@@ -26,7 +26,7 @@ export const CustomBottomSheet: React.FC<CustomBottomSheetProps> = ({
   const sheetRef = React.useRef<ExpoBottomSheet>(null);
 
   const mappedSnapPoints = React.useMemo(() => {
-    if (!snapPoints) return ["50%", "90%"];
+    if (!snapPoints) return undefined;
     return snapPoints.map((p) => {
       if (p === "half") return "50%";
       if (p === "full") return "90%";
@@ -90,11 +90,11 @@ export const CustomBottomSheet: React.FC<CustomBottomSheetProps> = ({
 
         {/* Scrollable/View Body */}
         {scrollable ? (
-          <BottomSheetScrollView style={styles.scrollView} contentContainerStyle={styles.scrollBody}>
+          <BottomSheetScrollView style={[styles.scrollView, !snapPoints && { flex: 0 }]} contentContainerStyle={styles.scrollBody}>
             {children}
           </BottomSheetScrollView>
         ) : (
-          <View style={styles.body}>{children}</View>
+          <View style={[styles.body, !snapPoints && { flex: 0 }]}>{children}</View>
         )}
       </BottomSheetView>
     </ExpoBottomSheet>

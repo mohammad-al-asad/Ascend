@@ -133,7 +133,7 @@ export default function ProfileScreen() {
         <Text style={[styles.categoryHeader, { color: theme.colors.textSecondary }]}>RECORDS</Text>
         <View style={[styles.sectionCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
           <Pressable
-            onPress={() => alert("Opening records home...")}
+            onPress={() => router.push("/profile/records" as any)}
             style={[styles.itemRowNoBorder, { flexDirection: "row", alignItems: "center" }]}
           >
             <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
