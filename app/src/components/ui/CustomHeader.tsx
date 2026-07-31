@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../utils/useTheme";
 
 interface CustomHeaderProps {
-  title?: string;
+  title?: string | React.ReactNode;
   onBack?: () => void;
   rightElement?: React.ReactNode;
 }
@@ -35,9 +35,13 @@ export const CustomHeader: React.FC<CustomHeaderProps> = ({
         />
 
         {title && (
-          <Text style={[styles.titleText, { color: theme.colors.text }]}>
-            {title}
-          </Text>
+          typeof title === "string" ? (
+            <Text style={[styles.titleText, { color: theme.colors.text }]}>
+              {title}
+            </Text>
+          ) : (
+            title
+          )
         )}
       </View>
 

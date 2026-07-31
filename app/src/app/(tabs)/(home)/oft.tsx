@@ -56,7 +56,6 @@ export default function OftCurrencyScreen() {
               <Ionicons name="notifications-outline" size={20} color={theme.colors.text} />
               <View style={[styles.bellDot, { backgroundColor: theme.colors.primary }]} />
             </Pressable>
-            <View style={[styles.statusDot, { backgroundColor: theme.colors.primary }]} />
           </View>
         }
       />
