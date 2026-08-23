@@ -224,8 +224,8 @@ export default function OnboardingScreen() {
                   i === activeIndex
                     ? theme.colors.primary
                     : i < activeIndex
-                    ? "rgba(0, 163, 196, 0.4)" // Past steps dimmed cyan
-                    : theme.colors.cardBorder,
+                      ? "rgba(0, 163, 196, 0.4)" // Past steps dimmed cyan
+                      : theme.colors.cardBorder,
               },
             ]}
           />
@@ -237,9 +237,10 @@ export default function OnboardingScreen() {
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
       {/* OPSEC banner */}
-      <View style={[styles.opsecBanner, { backgroundColor: "#000000" }]}>
+      <View style={[styles.opsecBanner, { backgroundColor: "#000000", flexDirection: "row", gap: 6 }]}>
+        <Image source={require("../../../public/LockIcon.svg")} style={{ width: 10, height: 10 }} />
         <Text style={[styles.opsecText, { color: "#8E8E93" }]}>
-          🔒 CUI // OPSEC — Ascend is not a Government system of record.
+          CUI // OPSEC — Ascend is not a Government system of record.
         </Text>
       </View>
 
@@ -248,10 +249,10 @@ export default function OnboardingScreen() {
           currentStep === 0
             ? "Welcome"
             : currentStep === 1
-            ? "Before we begin"
-            : currentStep === 22
-            ? "Completed"
-            : "Onboarding"
+              ? "Before we begin"
+              : currentStep === 22
+                ? "Completed"
+                : "Onboarding"
         }
         onBack={handleBackStep}
         rightElement={
@@ -276,39 +277,19 @@ export default function OnboardingScreen() {
               resizeMode="contain"
             />
 
-            <Text style={[styles.stepSubTitle, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.stepSubTitle, { color: theme.colors.textSecondary, alignSelf: "flex-start" }]}>
               FIRST USE · OPERATOR MOBILE · PR-M-001
             </Text>
 
-            <Text style={[styles.stepTitle, { color: theme.colors.text }]}>
+            <Text style={[styles.stepTitle, { color: theme.colors.text, alignSelf: "flex-start" }]}>
               Welcome, {user?.username || "Capt. Lin"}
             </Text>
 
-            <Text style={[styles.stepDesc, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.stepDesc, { color: theme.colors.textSecondary, alignSelf: "flex-start", textAlign: "left", paddingHorizontal: 0 }]}>
               Your readiness baseline helps your team support you from day one. It takes about 3 minutes.
             </Text>
 
-            {/* Debugging Metadata */}
-            <View style={styles.metaBox}>
-              <Text style={[styles.metaText, { color: theme.colors.textTertiary }]}>
-                Performing user {user?.username || "capt.lin"} · {user?.userId || "USR-6601"}
-              </Text>
-              <Text style={[styles.metaText, { color: theme.colors.textTertiary }]}>
-                Policy version ascend-ia-01@1.4.0
-              </Text>
-              <Text style={[styles.metaText, { color: theme.colors.textTertiary }]}>
-                Read first_use_state.account_provisioned_status={user?.provisionedStatus || "active"}
-              </Text>
-              <Text style={[styles.metaText, { color: theme.colors.textTertiary }]}>
-                Read first_use_state.first_login_timestamp={user?.firstLoginTimestamp || "2026-07-17T08:42:00Z"}
-              </Text>
-              <Text style={[styles.metaText, { color: theme.colors.textTertiary }]}>
-                Read first_use_state.onboarding_status=incomplete
-              </Text>
-              <Text style={[styles.metaText, { color: theme.colors.textTertiary }]}>
-                Trace FIRSTUSE-9F2A
-              </Text>
-            </View>
+            <View style={{ flex: 1 }} />
 
             <CustomButton
               label="Begin your readiness baseline"
@@ -323,12 +304,12 @@ export default function OnboardingScreen() {
         {/* ================= STEP 1: CONSENT SCREEN ================= */}
         {currentStep === 1 && (
           <View style={styles.innerContent}>
-            <Text style={[styles.stepSubTitle, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.stepSubTitle, { color: theme.colors.textSecondary, alignSelf: "flex-start" }]}>
               FIRST-USE · ONBOARDING · PR-M-002
             </Text>
 
-            <Text style={[styles.stepTitle, { color: theme.colors.text }]}>Before we begin</Text>
-            <Text style={[styles.stepDesc, { color: theme.colors.textSecondary }]}>
+            <Text style={[styles.stepTitle, { color: theme.colors.text, alignSelf: "flex-start" }]}>Before we begin</Text>
+            <Text style={[styles.stepDesc, { color: theme.colors.textSecondary, alignSelf: "flex-start", textAlign: "left", paddingHorizontal: 0 }]}>
               Two short confirmations before your baseline questions begin.
             </Text>
 
@@ -376,7 +357,7 @@ export default function OnboardingScreen() {
 
             {/* Medical Record Disclaimer */}
             <View style={[styles.disclaimerBox, { backgroundColor: "#1C1F26" }]}>
-              <Text style={styles.infoIcon}>ℹ</Text>
+              <Image source={require("../../../public/InfoIcon.svg")} style={{ width: 18, height: 18, marginRight: 12, tintColor: "#00A3C4" }} />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.disclaimerHeader, { color: "#FFFFFF" }]}>NOT A MEDICAL RECORD</Text>
                 <Text style={[styles.disclaimerDesc, { color: theme.colors.textSecondary }]}>
@@ -698,8 +679,8 @@ export default function OnboardingScreen() {
                 currentQuestion.followUp.type === "text-sheet"
                   ? tempTextValue.trim().length === 0
                   : currentQuestion.followUp.type === "role-sheet"
-                  ? false
-                  : !tempFollowUpOption
+                    ? false
+                    : !tempFollowUpOption
               }
               style={{ width: "100%", marginTop: 24 }}
             />
@@ -727,10 +708,12 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 20,
+    flexGrow: 1,
   },
   innerContent: {
     alignItems: "center",
     width: "100%",
+    flex: 1,
   },
   largeLogoImage: {
     width: 80,
@@ -746,8 +729,8 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   stepTitle: {
-    fontSize: 28,
-    fontWeight: "800",
+    fontSize: 24,
+    fontWeight: "500",
     marginBottom: 16,
   },
   stepDesc: {
@@ -862,8 +845,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   questionTitleText: {
-    fontSize: 22,
-    fontWeight: "800",
+    fontSize: 20,
+    fontWeight: "600",
     marginBottom: 12,
   },
   questionDescText: {
