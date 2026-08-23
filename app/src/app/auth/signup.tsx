@@ -15,16 +15,18 @@ import { useTheme } from "../../utils/useTheme";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CustomButton } from "../../components/ui/CustomButton";
 
-export default function SignInScreen() {
+export default function SignUpScreen() {
   const theme = useTheme();
   const router = useRouter();
   const dispatch = useAppDispatch();
 
+  const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [accountCreated, setAccountCreated] = useState(false);
 
-  const handleEmailSignIn = () => {
+  const handleSignUp = () => {
     dispatch(startLogin());
     dispatch(
       loginSuccess({
@@ -35,11 +37,11 @@ export default function SignInScreen() {
         firstLoginTimestamp: new Date().toISOString(),
       })
     );
-    router.replace("/onboarding" as any);
+    setAccountCreated(true);
   };
 
   const handleGoogleSignIn = () => {
-    handleEmailSignIn();
+    handleSignUp();
   };
 
   return (
@@ -77,103 +79,135 @@ export default function SignInScreen() {
           ]}
         >
           <View style={styles.tagContainer}>
-            <Text style={styles.tagText}>OPERATOR ENTRY</Text>
+            <Text style={styles.tagText}>OPERATOR ENTRY{accountCreated ? " · PR-M-005" : ""}</Text>
           </View>
 
           <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
-            Sign in to your account
+            Create an account
           </Text>
 
           <Text style={[styles.cardDesc, { color: theme.colors.textSecondary }]}>
-            Access readiness tracking, fitness logs & performance analytics.
+            Fill out your details below to request readiness access.
           </Text>
 
-          <Pressable
-            style={({ pressed }) => [
-              styles.googleBtn,
-              pressed && { opacity: 0.8 }
-            ]}
-            onPress={handleGoogleSignIn}
-          >
-            <Image
-              source={require("../../../public/GoogleIcon.svg")}
-              style={styles.logoImage}
-              resizeMode="contain"
-            />
-            <Text style={styles.googleBtnText}>Continue with Google</Text>
-          </Pressable>
-
-          <View style={styles.separatorContainer}>
-            <View style={[styles.separatorLine, { backgroundColor: theme.colors.cardBorder }]} />
-            <Text style={[styles.separatorText, { color: theme.colors.textTertiary }]}>OR</Text>
-            <View style={[styles.separatorLine, { backgroundColor: theme.colors.cardBorder }]} />
-          </View>
-
-          {/* Email Field */}
-          <View style={styles.inputContainer}>
-            <Text style={[styles.label, { color: "#B6B6BD" }]}>Email address</Text>
-            <View style={[styles.inputWrapper, { backgroundColor: "#0d0d0d", borderColor: theme.colors.cardBorder }]}>
-              <TextInput
-                placeholder="operator@ascend.mil"
-                placeholderTextColor={theme.colors.textTertiary}
-                value={email}
-                onChangeText={setEmail}
-                style={[styles.input, { color: theme.colors.text, outlineStyle: "none" } as any]}
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-            </View>
-          </View>
-
-          {/* Password Field */}
-          <View style={styles.inputContainer}>
-            <View style={styles.labelRow}>
-              <Text style={[styles.label, { color: "#B6B6BD" }]}>Password</Text>
-              <Pressable onPress={() => router.push("/auth/forgot-password" as any)}>
-                <Text style={styles.forgotPassword}>Forgot password?</Text>
-              </Pressable>
-            </View>
-            <View style={[styles.inputWrapper, { backgroundColor: "#0d0d0d", borderColor: theme.colors.cardBorder }]}>
-              <TextInput
-                placeholder="••••••••••••"
-                placeholderTextColor={theme.colors.textTertiary}
-                value={password}
-                onChangeText={setPassword}
-                secureTextEntry={!showPassword}
-                style={[styles.input, { color: theme.colors.text, outlineStyle: "none" } as any]}
-              />
-              <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeIconContainer}>
+          {accountCreated ? (
+            <View style={styles.successContainer}>
+              <View style={styles.successIconWrapper}>
                 <Image
-                  source={require("../../../public/EyeIcon.svg")}
-                  style={{ width: 16, height: 16 }}
+                  source={require("../../../public/CheckIcon.svg")}
+                  style={{ width: 24, height: 24, tintColor: "#03A5B6" }}
                   resizeMode="contain"
                 />
+              </View>
+              <Text style={styles.successTitle}>Account successfully created for {fullName || "fd"}!</Text>
+              <Text style={styles.successDesc}>Redirecting to secure operator dashboard...</Text>
+
+              <Pressable onPress={() => router.push("/auth/signin" as any)}>
+                <Text style={styles.signOutLink}>Sign In</Text>
               </Pressable>
             </View>
-          </View>
+          ) : (
+            <>
+              <Pressable
+                style={({ pressed }) => [
+                  styles.googleBtn,
+                  pressed && { opacity: 0.8 }
+                ]}
+                onPress={handleGoogleSignIn}
+              >
+                <Image
+                  source={require("../../../public/GoogleIcon.svg")}
+                  style={styles.logoImage}
+                  resizeMode="contain"
+                />
+                <Text style={styles.googleBtnText}>Continue with Google</Text>
+              </Pressable>
 
-          <CustomButton
-            label="Sign in with Email"
-            icon={
-              <Image 
-                source={require("../../../public/RightDirectionIcon.svg")} 
-                style={{ width: 16, height: 16 }} 
-                resizeMode="contain" 
+              <View style={styles.separatorContainer}>
+                <View style={[styles.separatorLine, { backgroundColor: theme.colors.cardBorder }]} />
+                <Text style={[styles.separatorText, { color: theme.colors.textTertiary }]}>OR</Text>
+                <View style={[styles.separatorLine, { backgroundColor: theme.colors.cardBorder }]} />
+              </View>
+
+              {/* Full Name Field */}
+              <View style={styles.inputContainer}>
+                <Text style={[styles.label, { color: "#B6B6BD" }]}>Full Name</Text>
+                <View style={[styles.inputWrapper, { backgroundColor: "#0d0d0d", borderColor: theme.colors.cardBorder }]}>
+                  <TextInput
+                    placeholder="John Doe"
+                    placeholderTextColor={theme.colors.textTertiary}
+                    value={fullName}
+                    onChangeText={setFullName}
+                    style={[styles.input, { color: theme.colors.text, outlineStyle: "none" } as any]}
+                    autoCapitalize="words"
+                  />
+                </View>
+              </View>
+
+              {/* Email Field */}
+              <View style={styles.inputContainer}>
+                <Text style={[styles.label, { color: "#B6B6BD" }]}>Email address</Text>
+                <View style={[styles.inputWrapper, { backgroundColor: "#0d0d0d", borderColor: theme.colors.cardBorder }]}>
+                  <TextInput
+                    placeholder="operator@ascend.mil"
+                    placeholderTextColor={theme.colors.textTertiary}
+                    value={email}
+                    onChangeText={setEmail}
+                    style={[styles.input, { color: theme.colors.text, outlineStyle: "none" } as any]}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                </View>
+              </View>
+
+              {/* Password Field */}
+              <View style={styles.inputContainer}>
+                <View style={styles.labelRow}>
+                  <Text style={[styles.label, { color: "#B6B6BD" }]}>Password</Text>
+                </View>
+                <View style={[styles.inputWrapper, { backgroundColor: "#0d0d0d", borderColor: theme.colors.cardBorder }]}>
+                  <TextInput
+                    placeholder="••••••••••••"
+                    placeholderTextColor={theme.colors.textTertiary}
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                    style={[styles.input, { color: theme.colors.text, outlineStyle: "none" } as any]}
+                  />
+                  <Pressable onPress={() => setShowPassword(!showPassword)} style={styles.eyeIconContainer}>
+                    <Image
+                      source={require("../../../public/EyeIcon.svg")}
+                      style={{ width: 16, height: 16 }}
+                      resizeMode="contain"
+                    />
+                  </Pressable>
+                </View>
+              </View>
+
+              <CustomButton
+                label="Create Account"
+                icon={
+                  <Image
+                    source={require("../../../public/RightDirectionIcon.svg")}
+                    style={{ width: 16, height: 16 }}
+                    resizeMode="contain"
+                  />
+                }
+                iconPosition="right"
+                onPress={handleSignUp}
+                style={{ width: "100%", marginBottom: 24, backgroundColor: "#00B4D8", borderWidth: 0 }}
+                textStyle={{ color: "#FFFFFF", fontWeight: "600" }}
+                glow={true}
               />
-            }
-            iconPosition="right"
-            onPress={handleEmailSignIn}
-            style={{ width: "100%", marginBottom: 24, backgroundColor: "#00B4D8", borderWidth: 0 }}
-            textStyle={{ color: "#FFFFFF", fontWeight: "600" }}
-            glow={true}
-          />
 
-          <View style={styles.signupRow}>
-            <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>Don't have an account? </Text>
-            <Pressable onPress={() => router.push("/auth/signup" as any)}>
-              <Text style={{ color: "#00B4D8", fontSize: 13, fontWeight: "600" }}>Sign up</Text>
-            </Pressable>
-          </View>
+              <View style={styles.signupRow}>
+                <Text style={{ color: theme.colors.textSecondary, fontSize: 13 }}>Already have an account? </Text>
+                <Pressable onPress={() => router.push("/auth/signin" as any)}>
+                  <Text style={{ color: "#00B4D8", fontSize: 13, fontWeight: "600" }}>Sign in</Text>
+                </Pressable>
+              </View>
+            </>
+          )}
 
           <View style={[styles.complianceBox, { borderTopColor: theme.colors.cardBorder }]}>
             <Image
@@ -319,11 +353,6 @@ const styles = StyleSheet.create({
     fontWeight: "400",
     marginBottom: 8,
   },
-  forgotPassword: {
-    fontSize: 12,
-    color: "#00B4D8",
-    fontWeight: "500",
-  },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
@@ -369,6 +398,43 @@ const styles = StyleSheet.create({
   },
   troubleLink: {
     fontSize: 12,
+    fontWeight: "500",
+  },
+  successContainer: {
+    backgroundColor: "rgba(3, 165, 182, 0.05)",
+    borderWidth: 1,
+    borderColor: "rgba(3, 165, 182, 0.2)",
+    borderRadius: 12,
+    padding: 32,
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  successIconWrapper: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: "#03A5B6",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  successTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  successDesc: {
+    fontSize: 13,
+    color: "#A1A1AA",
+    marginBottom: 24,
+    textAlign: "center",
+  },
+  signOutLink: {
+    fontSize: 15,
+    color: "#03A5B6",
     fontWeight: "500",
   },
 });

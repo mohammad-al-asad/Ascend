@@ -20,6 +20,8 @@ interface CustomButtonProps {
   textStyle?: TextStyle;
   icon?: React.ReactNode;
   iconPosition?: "left" | "right";
+  glow?: boolean;
+  glowColor?: string;
 }
 
 export const CustomButton: React.FC<CustomButtonProps> = ({
@@ -32,6 +34,8 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
   textStyle,
   icon,
   iconPosition = "left",
+  glow = false,
+  glowColor,
 }) => {
   const theme = useTheme();
 
@@ -41,39 +45,54 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
       alignItems: "center",
       justifyContent: "center",
       height: 48,
-      borderRadius: 24,
+      borderRadius: 16,
       paddingHorizontal: 24,
       borderWidth: 1,
       borderColor: "transparent",
     };
 
+    let variantStyle: ViewStyle = {};
+
     if (variant === "filled") {
-      return {
-        ...baseStyle,
+      variantStyle = {
         backgroundColor: disabled
           ? theme.colors.primaryDisabled
           : pressed
           ? theme.colors.primaryHover
           : theme.colors.primary,
-        ...style,
       };
     } else if (variant === "outlined") {
-      return {
-        ...baseStyle,
+      variantStyle = {
         backgroundColor: pressed ? "rgba(255, 255, 255, 0.05)" : "transparent",
         borderColor: disabled ? theme.colors.primaryDisabled : theme.colors.primary,
-        ...style,
       };
     } else {
       // Text only
-      return {
-        ...baseStyle,
+      variantStyle = {
         height: "auto",
         paddingHorizontal: 0,
         backgroundColor: "transparent",
-        ...style,
       };
     }
+
+    let glowStyle: ViewStyle = {};
+    if (glow && variant === "filled" && !disabled) {
+      const gColor = glowColor || style?.backgroundColor?.toString() || theme.colors.primary;
+      glowStyle = {
+        shadowColor: gColor,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.6,
+        shadowRadius: 16,
+        elevation: 10,
+      };
+    }
+
+    return {
+      ...baseStyle,
+      ...variantStyle,
+      ...glowStyle,
+      ...style,
+    };
   };
 
   const getTextColor = (): string => {
@@ -128,8 +147,8 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
 
 const styles = StyleSheet.create({
   buttonText: {
-    fontSize: 15,
-    fontWeight: "700",
+    fontSize: 16,
+    fontWeight: "500",
     textAlign: "center",
   },
   iconLeftWrapper: {
@@ -143,6 +162,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   iconText: {
-    fontSize: 16,
+    fontSize: 18,
   },
 });
