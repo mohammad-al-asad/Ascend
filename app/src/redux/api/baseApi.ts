@@ -10,9 +10,11 @@ const baseQuery = fetchBaseQuery({
   prepareHeaders: (headers, { getState }) => {
     const token = (getState() as RootState).auth.accessToken;
     if (token) {
+      console.log("Authenticated request: access token attached");
       headers.set("Authorization", `Bearer ${token}`);
     }
     headers.set("Content-Type", "application/json");
+    headers.set("ngrok-skip-browser-warning", "true");
     return headers;
   },
 });
@@ -83,5 +85,6 @@ const baseQueryWithReauth: BaseQueryFn<
 export const baseApi = createApi({
   reducerPath: "baseApi",
   baseQuery: baseQueryWithReauth,
+  tagTypes: ["Profile"],
   endpoints: () => ({}),
 });

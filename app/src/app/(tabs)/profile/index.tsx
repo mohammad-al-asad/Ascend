@@ -1,39 +1,73 @@
-import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useAppDispatch } from "../../../redux/store";
+import { useAppDispatch, useAppSelector } from "../../../redux/store";
 import { logout } from "../../../redux/slices/authSlice";
 import { useTheme } from "../../../utils/useTheme";
 import { CustomHeader } from "../../../components/ui/CustomHeader";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CustomSwitch } from "../../../components/ui/CustomSwitch";
+import { useGetProfileQuery, useUpdateProfileSettingsMutation } from "../../../redux/api/usersApi";
 
 export default function ProfileScreen() {
   const theme = useTheme();
   const router = useRouter();
   const dispatch = useAppDispatch();
+  const { isAuthenticated, isAuthLoading } = useAppSelector((state) => state.auth);
+
+  const { data: profile, isLoading, error } = useGetProfileQuery(undefined, {
+    skip: isAuthLoading || !isAuthenticated,
+  });
+  const [updateSettings] = useUpdateProfileSettingsMutation();
+
+  useEffect(() => {
+    if (error) {
+      console.log("Profile Query Error:", error);
+    }
+  }, [error]);
 
   // Local preferences states
   const [darkTheme, setDarkTheme] = useState(true);
   const [notifications, setNotifications] = useState(true);
+
+  useEffect(() => {
+    if (profile) {
+      setDarkTheme(profile.theme_preference === "dark");
+      setNotifications(profile.notifications_enabled);
+    }
+  }, [profile]);
+
+  const handleThemeChange = (val: boolean) => {
+    setDarkTheme(val);
+    updateSettings({ theme_preference: val ? "dark" : "light" });
+  };
+
+  const handleNotificationsChange = (val: boolean) => {
+    setNotifications(val);
+    updateSettings({ notifications_enabled: val });
+  };
 
   const handleSignOut = () => {
     dispatch(logout());
     router.replace("/auth/signin" as any);
   };
 
-  const renderIdentityRow = (label: string, value: string, isCac = false) => {
+  const getInitials = (name?: string) => {
+    if (!name) return "";
+    const parts = name.split(" ").filter(Boolean);
+    if (parts.length > 1) {
+      return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+    }
+    return parts[0][0].toUpperCase();
+  };
+
+  const renderIdentityRow = (label: string, value: string) => {
     return (
       <View style={[styles.itemRow, { borderBottomColor: theme.colors.cardBorder }]}>
         <Text style={[styles.rowLabel, { color: theme.colors.text }]}>{label}</Text>
         <View style={styles.rowRight}>
           <Text style={[styles.rowValue, { color: theme.colors.textSecondary }]}>{value}</Text>
-          {isCac && (
-            <View style={styles.cacBadge}>
-              <Text style={styles.cacBadgeText}>CAC</Text>
-            </View>
-          )}
         </View>
       </View>
     );
@@ -65,37 +99,52 @@ export default function ProfileScreen() {
           </Text>
           <Text style={[styles.titleText, { color: theme.colors.text }]}>Profile & settings</Text>
           <Text style={[styles.descText, { color: theme.colors.textSecondary }]}>
-            Identity is read from your CAC. Theme and notifications are the only locally controllable settings on this surface.
+            Theme and notifications are the only locally controllable settings on this surface.
           </Text>
         </View>
 
-        {/* User Card */}
-        <View style={[styles.userCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
-          <View style={[styles.avatarCircle, { backgroundColor: theme.colors.primary }]}>
-            <Text style={styles.avatarText}>MR</Text>
+        {isLoading ? (
+          <View style={{ padding: 24, alignItems: "center" }}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
           </View>
-          <View style={styles.userInfo}>
-            <Text style={[styles.userNameText, { color: theme.colors.text }]}>Sgt Marcus R. Hayes</Text>
-            <Text style={[styles.userRankText, { color: theme.colors.textSecondary }]}>
-              E-5 · Sgt · 21 MDS · Bravo Flight
-            </Text>
-            <Text style={[styles.userIdText, { color: theme.colors.textTertiary }]}>
-              marcus.hayes@dws.af.mil · EDIPI 1234567890
+        ) : error ? (
+          <View style={{ padding: 24, alignItems: "center" }}>
+            <Text style={{ color: "#EF4444" }}>
+              Error loading profile: {JSON.stringify(error)}
             </Text>
           </View>
-        </View>
+        ) : (
+          <View style={[styles.userCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
+            <View style={[styles.avatarCircle, { backgroundColor: theme.colors.primary }]}>
+              <Text style={styles.avatarText}>{getInitials(profile?.full_name)}</Text>
+            </View>
+            <View style={styles.userInfo}>
+              <Text style={[styles.userNameText, { color: theme.colors.text }]}>
+                {profile?.full_name || "N/A"}
+              </Text>
+              <Text style={[styles.userRankText, { color: theme.colors.textSecondary }]}>
+                {profile ? `${profile.rank_grade || "N/A"} · ${profile.unit_id || "N/A"}` : "N/A"}
+              </Text>
+              <Text style={[styles.userIdText, { color: theme.colors.textTertiary }]}>
+                {profile?.email || "N/A"}
+              </Text>
+            </View>
+          </View>
+        )}
 
         {/* Identity Category section */}
         <Text style={[styles.categoryHeader, { color: theme.colors.textSecondary }]}>IDENTITY</Text>
         <View style={[styles.sectionCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
-          {renderIdentityRow("Name", "Sgt Marcus R. Hayes", true)}
-          {renderIdentityRow("Rank & grade", "E-5 · Sgt", true)}
-          {renderIdentityRow("Unit", "21 MDS · Bravo Flight", true)}
-          {renderIdentityRow("Assigned SCS", "TSgt R. Becker")}
-          {renderIdentityRow("Assigned PT/IM", "Capt J. Lin")}
+          {renderIdentityRow("Name", profile?.full_name || "N/A")}
+          {renderIdentityRow("Rank & grade", profile?.rank_grade || "N/A")}
+          {renderIdentityRow("Unit", profile?.unit_id || "N/A")}
+          {renderIdentityRow("Assigned SCS", profile?.assigned_scs?.name || "N/A")}
+          {renderIdentityRow("Assigned PT/IM", profile?.assigned_ptim?.name || "N/A")}
           <View style={styles.itemRowNoBorder}>
             <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Communications preference</Text>
-            <Text style={[styles.rowValue, { color: theme.colors.textSecondary }]}>Regular</Text>
+            <Text style={[styles.rowValue, { color: theme.colors.textSecondary }]}>
+              {profile?.communications_preference || "N/A"}
+            </Text>
           </View>
         </View>
 
@@ -106,14 +155,14 @@ export default function ProfileScreen() {
           <CustomSwitch
             label="Dark theme"
             value={darkTheme}
-            onValueChange={setDarkTheme}
+            onValueChange={handleThemeChange}
           />
 
           {/* Notifications toggle */}
           <CustomSwitch
             label="Notifications"
             value={notifications}
-            onValueChange={setNotifications}
+            onValueChange={handleNotificationsChange}
           />
 
           {/* Sign-in & activation link */}
@@ -164,7 +213,7 @@ export default function ProfileScreen() {
 
           {/* Privacy notice */}
           <Pressable
-            onPress={() => alert("Opening privacy notice...")}
+            onPress={() => router.push("/auth/privacy" as any)}
             style={[styles.itemRow, { borderBottomColor: theme.colors.cardBorder }]}
           >
             <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Privacy notice</Text>
@@ -319,17 +368,5 @@ const styles = StyleSheet.create({
   linkValue: {
     fontSize: 13,
     fontWeight: "600",
-  },
-  cacBadge: {
-    backgroundColor: "#27272A",
-    borderRadius: 4,
-    paddingHorizontal: 5,
-    paddingVertical: 2,
-    marginLeft: 8,
-  },
-  cacBadgeText: {
-    color: "#A1A1AA",
-    fontSize: 9,
-    fontWeight: "700",
   },
 });

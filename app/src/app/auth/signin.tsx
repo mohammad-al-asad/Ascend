@@ -13,10 +13,13 @@ import { useLoginMutation } from "../../redux/api/authApi";
 import { useTheme } from "../../utils/useTheme";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CustomButton } from "../../components/ui/CustomButton";
+import { useAppDispatch } from "../../redux/store";
+import { setCredentials } from "../../redux/slices/authSlice";
 
 export default function SignInScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const dispatch = useAppDispatch();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -28,6 +31,16 @@ export default function SignInScreen() {
     setErrorMsg(null);
     try {
       const result = await login({ email, password }).unwrap();
+      
+      // Explicitly set the token in authSlice
+      dispatch(
+        setCredentials({
+          user: result.user,
+          accessToken: result.access_token,
+          refreshToken: result.refresh_token,
+        })
+      );
+
       if (result.user?.onboarding_completed) {
         router.replace("/(tabs)/(home)" as any);
       } else {
