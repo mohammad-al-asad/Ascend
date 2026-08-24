@@ -13,7 +13,7 @@ export const authApi = baseApi.injectEndpoints({
       async onQueryStarted(arg, { dispatch, queryFulfilled }) {
         try {
           const { data } = await queryFulfilled;
-          await setTokens(data.access_token, data.refresh_token);
+          await setTokens(data.access_token, data.refresh_token, data.user);
           dispatch(
             setCredentials({
               user: data.user,
@@ -35,7 +35,7 @@ export const authApi = baseApi.injectEndpoints({
       async onQueryStarted(arg, { dispatch, queryFulfilled }) {
         try {
           const { data } = await queryFulfilled;
-          await setTokens(data.access_token, data.refresh_token);
+          await setTokens(data.access_token, data.refresh_token, data.user);
           dispatch(
             setCredentials({
               user: data.user,

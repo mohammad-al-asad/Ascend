@@ -22,6 +22,7 @@ export interface AuthState {
   refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isAuthLoading: boolean;
   error: string | null;
   // Kept for backward compatibility if needed, but backend handles onboarding state now
   onboardingAnswers: Record<string, any>;
@@ -34,6 +35,7 @@ const initialState: AuthState = {
   refreshToken: null,
   isAuthenticated: false,
   isLoading: false,
+  isAuthLoading: true,
   error: null,
   onboardingAnswers: {},
   onboardingFollowUps: {},
@@ -52,7 +54,11 @@ const authSlice = createSlice({
       state.refreshToken = action.payload.refreshToken;
       state.isAuthenticated = true;
       state.isLoading = false;
+      state.isAuthLoading = false;
       state.error = null;
+    },
+    setAuthLoading: (state, action: PayloadAction<boolean>) => {
+      state.isAuthLoading = action.payload;
     },
     updateUser: (state, action: PayloadAction<UserResponse>) => {
       state.user = action.payload;
@@ -62,6 +68,7 @@ const authSlice = createSlice({
       state.accessToken = null;
       state.refreshToken = null;
       state.isAuthenticated = false;
+      state.isAuthLoading = false;
       state.onboardingAnswers = {};
       state.onboardingFollowUps = {};
     },
@@ -83,6 +90,7 @@ const authSlice = createSlice({
 
 export const {
   setCredentials,
+  setAuthLoading,
   updateUser,
   logout,
   saveOnboardingAnswer,

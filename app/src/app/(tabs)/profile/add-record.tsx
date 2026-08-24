@@ -1,10 +1,12 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Platform, Alert } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Platform, Alert, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../../utils/useTheme";
 import { CustomHeader } from "../../../components/ui/CustomHeader";
 import { SafeAreaView } from "react-native-safe-area-context";
+import * as DocumentPicker from "expo-document-picker";
+import { useUploadRecordMutation } from "../../../redux/api/recordsApi";
 
 export default function AddRecordScreen() {
   const theme = useTheme();
@@ -13,7 +15,9 @@ export default function AddRecordScreen() {
   // Form states
   const [docType, setDocType] = useState("");
   const [accessReason, setAccessReason] = useState("");
-  const [attachedFile, setAttachedFile] = useState<string | null>(null);
+  const [attachedFile, setAttachedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
+  
+  const [uploadRecord, { isLoading }] = useUploadRecordMutation();
   
   // UI states
   const [isReasonFocused, setIsReasonFocused] = useState(false);
@@ -26,33 +30,85 @@ export default function AddRecordScreen() {
     setShowDropdown(false);
   };
 
-  const handleAttachFile = () => {
+  const handleAttachFile = async () => {
     if (attachedFile) {
       // Toggle off / detach
       setAttachedFile(null);
     } else {
-      // Simulate attaching a document
-      setAttachedFile("lipid_panel_draft_2026.pdf");
-      Alert.alert("File Selected", "lipid_panel_draft_2026.pdf (1.2 MB) attached successfully.");
+      try {
+        const result = await DocumentPicker.getDocumentAsync({});
+        if (!result.canceled && result.assets && result.assets.length > 0) {
+          const file = result.assets[0];
+          if (file.size && file.size > 50 * 1024 * 1024) {
+            Alert.alert("File Too Large", "Please select a file smaller than 50MB.");
+            return;
+          }
+          setAttachedFile(file);
+        }
+      } catch (error) {
+        console.error(error);
+        Alert.alert("Error", "Could not pick document.");
+      }
     }
   };
 
-  const handleSubmit = () => {
-    Alert.alert(
-      "Record Added",
-      `Successfully queued "${attachedFile}" under category "${docType}" for PT/IM review. Trace audit row written.`,
-      [
-        {
-          text: "OK",
-          onPress: () => router.replace("/profile/record-detail" as any),
-        },
-      ]
-    );
+  const mapDocType = (dt: string) => {
+    const map: Record<string, string> = {
+      "Labs": "labs",
+      "Imaging": "imaging",
+      "Specialist": "specialist",
+      "DME": "dme",
+      "Others": "other"
+    };
+    return map[dt] || "other";
+  };
+
+  const handleSubmit = async () => {
+    if (!attachedFile || !docType || !isReasonValid) return;
+    
+    const formData = new FormData();
+    formData.append("document_type", mapDocType(docType));
+    formData.append("access_reason", accessReason);
+    
+    formData.append("file", {
+      uri: attachedFile.uri,
+      name: attachedFile.name,
+      type: attachedFile.mimeType || "application/octet-stream",
+    } as any);
+
+    try {
+      const res = await uploadRecord(formData).unwrap();
+      if (res.status === "quarantined") {
+        Alert.alert(
+          "Record Uploaded",
+          `Your record has been uploaded but was flagged for quarantine. Awaiting review.`,
+          [
+            {
+              text: "OK",
+              onPress: () => router.replace({ pathname: "/profile/record-detail", params: { id: res.id } } as any),
+            },
+          ]
+        );
+      } else {
+        Alert.alert(
+          "Record Added",
+          `Successfully queued "${attachedFile.name}" under category "${docType}" for PT/IM review.`,
+          [
+            {
+              text: "OK",
+              onPress: () => router.replace({ pathname: "/profile/record-detail", params: { id: res.id } } as any),
+            },
+          ]
+        );
+      }
+    } catch (err: any) {
+      Alert.alert("Upload Failed", err?.data?.detail || "An error occurred during upload.");
+    }
   };
 
   // Validation
   const isReasonValid = accessReason.trim().length >= 12;
-  const isFormValid = docType !== "" && isReasonValid && attachedFile !== null;
+  const isFormValid = docType !== "" && isReasonValid && attachedFile !== null && !isLoading;
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
@@ -197,11 +253,11 @@ export default function AddRecordScreen() {
                 />
               </View>
               <View style={styles.dropzoneTextWrapper}>
-                <Text style={[styles.dropzoneTitle, { color: theme.colors.text }]}>
-                  {attachedFile ? attachedFile : "Drop file or tap to browse"}
+                <Text style={[styles.dropzoneTitle, { color: theme.colors.text }]} numberOfLines={1}>
+                  {attachedFile ? attachedFile.name : "Drop file or tap to browse"}
                 </Text>
                 <Text style={[styles.dropzoneSubtitle, { color: theme.colors.textSecondary }]}>
-                  {attachedFile ? "Tap again to remove" : "PDF, image, or DICOM · up to 50 MB"}
+                  {attachedFile ? `${(attachedFile.size || 0) / 1024 / 1024 > 1 ? ((attachedFile.size || 0) / 1024 / 1024).toFixed(1) + ' MB' : ((attachedFile.size || 0) / 1024).toFixed(1) + ' KB'} · Tap again to remove` : "PDF, image, or DICOM · up to 50 MB"}
                 </Text>
               </View>
             </View>
@@ -220,14 +276,20 @@ export default function AddRecordScreen() {
               },
             ]}
           >
-            <Text style={[styles.submitButtonText, { color: isFormValid ? "#FFFFFF" : theme.colors.textSecondary }]}>
-              {isFormValid ? "Submit record " : "Complete all fields "}
-            </Text>
-            <Ionicons
-              name="arrow-up"
-              size={16}
-              color={isFormValid ? "#FFFFFF" : theme.colors.textSecondary}
-            />
+            {isLoading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <>
+                <Text style={[styles.submitButtonText, { color: isFormValid ? "#FFFFFF" : theme.colors.textSecondary }]}>
+                  {isFormValid ? "Submit record " : "Complete all fields "}
+                </Text>
+                <Ionicons
+                  name="arrow-up"
+                  size={16}
+                  color={isFormValid ? "#FFFFFF" : theme.colors.textSecondary}
+                />
+              </>
+            )}
           </Pressable>
         </View>
 

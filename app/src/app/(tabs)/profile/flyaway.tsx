@@ -1,40 +1,27 @@
 import React from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, Platform, Alert } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, Platform, Linking, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../../utils/useTheme";
 import { CustomHeader } from "../../../components/ui/CustomHeader";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useGetFlyAwayKitQuery } from "../../../redux/api/recordsApi";
 
 export default function FlyAwayKitScreen() {
   const theme = useTheme();
   const router = useRouter();
 
-  const contactsData = [
-    {
-      id: 1,
-      name: "SCS · on-call",
-      phone: "555-XXXX · 24/7",
-    },
-    {
-      id: 2,
-      name: "PT/IM clinic",
-      phone: "555-XXXX · M-F 0600-1430",
-    },
-    {
-      id: 3,
-      name: "Chaplain hotline",
-      phone: "555-XXXX · 24/7",
-    },
-    {
-      id: 4,
-      name: "Family point of contact",
-      phone: "555-XXXX · update via SCS",
-    },
-  ];
+  const { data, isLoading } = useGetFlyAwayKitQuery();
 
-  const handleCallPress = (name: string) => {
-    Alert.alert("Placing Call", `Dialing contact number for "${name}"...`);
+  const handleCallPress = (phone: string) => {
+    const rawPhone = phone.split(" ")[0].replace(/[^0-9+]/g, '');
+    Linking.openURL(`tel:${rawPhone}`);
+  };
+
+  const formatDate = (isoStr?: string) => {
+    if (!isoStr) return "";
+    const d = new Date(isoStr);
+    return d.toLocaleDateString("en-GB", { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
   // Header Title component with Lock Badge
@@ -92,66 +79,74 @@ export default function FlyAwayKitScreen() {
           </Text>
         </View>
 
-        {/* Emergency Contacts Section */}
-        <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>Emergency contacts</Text>
-        <View style={[styles.listContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
-          {contactsData.map((item, idx) => {
-            const isLast = idx === contactsData.length - 1;
-            return (
-              <View
-                key={item.id}
-                style={[
-                  styles.listItemRow,
-                  { borderBottomWidth: isLast ? 0 : 1, borderBottomColor: theme.colors.cardBorder },
-                ]}
-              >
-                <View style={styles.listItemLeft}>
-                  <View style={[styles.iconWrapper, { backgroundColor: "#1C1F26" }]}>
-                    <Ionicons name="call-outline" size={16} color={theme.colors.textSecondary} />
+        {isLoading ? (
+          <ActivityIndicator style={{ margin: 24 }} color={theme.colors.primary} />
+        ) : data ? (
+          <>
+            {/* Emergency Contacts Section */}
+            <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>Emergency contacts</Text>
+            <View style={[styles.listContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
+              {data.contacts.map((item, idx) => {
+                const isLast = idx === data.contacts.length - 1;
+                return (
+                  <View
+                    key={item.id || idx}
+                    style={[
+                      styles.listItemRow,
+                      { borderBottomWidth: isLast ? 0 : 1, borderBottomColor: theme.colors.cardBorder },
+                    ]}
+                  >
+                    <View style={styles.listItemLeft}>
+                      <View style={[styles.iconWrapper, { backgroundColor: "#1C1F26" }]}>
+                        <Ionicons name="call-outline" size={16} color={theme.colors.textSecondary} />
+                      </View>
+                      <View style={styles.textContainer}>
+                        <Text style={[styles.itemTitle, { color: theme.colors.text }]}>{item.role}</Text>
+                        <Text style={[styles.itemSubtitle, { color: theme.colors.textSecondary }]}>
+                          {item.phone_number} {item.notes ? `· ${item.notes}` : ""}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Right call action */}
+                    <Pressable
+                      onPress={() => handleCallPress(item.phone_number)}
+                      style={[styles.callBadge, { backgroundColor: "#27272A" }]}
+                    >
+                      <Text style={[styles.callBadgeText, { color: theme.colors.text }]}>Tap to call</Text>
+                    </Pressable>
                   </View>
-                  <View style={styles.textContainer}>
-                    <Text style={[styles.itemTitle, { color: theme.colors.text }]}>{item.name}</Text>
-                    <Text style={[styles.itemSubtitle, { color: theme.colors.textSecondary }]}>
-                      {item.phone}
-                    </Text>
-                  </View>
-                </View>
+                );
+              })}
+            </View>
 
-                {/* Right call action */}
-                <Pressable
-                  onPress={() => handleCallPress(item.name)}
-                  style={[styles.callBadge, { backgroundColor: "#27272A" }]}
-                >
-                  <Text style={[styles.callBadgeText, { color: theme.colors.text }]}>Tap to call</Text>
-                </Pressable>
-              </View>
-            );
-          })}
-        </View>
+            {/* Rehab Status section */}
+            <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>Rehab status · {data.rehab_status_lines.length} lines</Text>
+            <View style={styles.rehabTextContainer}>
+              {data.rehab_status_lines.map((line, idx) => (
+                <Text key={idx} style={[styles.rehabTextLine, { color: theme.colors.text }]}>{line}</Text>
+              ))}
+            </View>
 
-        {/* Rehab Status section */}
-        <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>Rehab status · 5 lines</Text>
-        <View style={styles.rehabTextContainer}>
-          <Text style={[styles.rehabTextLine, { color: theme.colors.text }]}>Wind-down protocol · 14 days in</Text>
-          <Text style={[styles.rehabTextLine, { color: theme.colors.text }]}>Sessions 8 of 12 · on cadence</Text>
-          <Text style={[styles.rehabTextLine, { color: theme.colors.text }]}>No active injury flags</Text>
-          <Text style={[styles.rehabTextLine, { color: theme.colors.text }]}>PT/IM clearance: Modified duty</Text>
-          <Text style={[styles.rehabTextLine, { color: theme.colors.text }]}>Next review 30 Jan 2026</Text>
-        </View>
+            {/* Assigned Provider section */}
+            <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>Assigned provider</Text>
+            <View style={styles.providerContainer}>
+              <Text style={[styles.providerName, { color: theme.colors.text }]}>
+                {data.assigned_provider.name} · {data.assigned_provider.role}
+              </Text>
+              <Text style={[styles.providerPhone, { color: theme.colors.textSecondary }]}>
+                {data.assigned_provider.phone_number}
+              </Text>
+            </View>
 
-        {/* Assigned Provider section */}
-        <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>Assigned provider</Text>
-        <View style={styles.providerContainer}>
-          <Text style={[styles.providerName, { color: theme.colors.text }]}>pt.knox · PT/IM</Text>
-          <Text style={[styles.providerPhone, { color: theme.colors.textSecondary }]}>555-XXXX</Text>
-        </View>
-
-        {/* Bottom published date */}
-        <View style={styles.footerContainer}>
-          <Text style={[styles.footerText, { color: theme.colors.textSecondary }]}>
-            Effective template · locked-on-publish. Last published 02 Jul 2026.
-          </Text>
-        </View>
+            {/* Bottom published date */}
+            <View style={styles.footerContainer}>
+              <Text style={[styles.footerText, { color: theme.colors.textSecondary }]}>
+                Effective template · locked-on-publish. Last published {formatDate(data.last_published_at)}.
+              </Text>
+            </View>
+          </>
+        ) : null}
       </ScrollView>
     </SafeAreaView>
   );
