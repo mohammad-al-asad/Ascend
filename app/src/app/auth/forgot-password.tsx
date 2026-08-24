@@ -12,7 +12,12 @@ import { useRouter } from "expo-router";
 import { useTheme } from "../../utils/useTheme";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CustomButton } from "../../components/ui/CustomButton";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
+import {
+  useForgotPasswordMutation,
+  useVerifyResetCodeMutation,
+  useResetPasswordMutation
+} from "../../redux/api/authApi";
 
 export default function ForgotPasswordScreen() {
   const theme = useTheme();
@@ -25,23 +30,75 @@ export default function ForgotPasswordScreen() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const [forgotPassword, { isLoading: isForgotLoading }] = useForgotPasswordMutation();
+  const [verifyResetCode, { isLoading: isVerifyLoading }] = useVerifyResetCodeMutation();
+  const [resetPassword, { isLoading: isResetLoading }] = useResetPasswordMutation();
 
   // Requirements checks
-  const hasMinLength = newPassword.length >= 8;
+  const hasMinLength = newPassword.length >= 8 && newPassword.length <= 128;
   const hasNumber = /\d/.test(newPassword);
   const hasUppercase = /[A-Z]/.test(newPassword);
   const passwordsMatch = newPassword.length > 0 && newPassword === confirmPassword;
 
-  const handleSendCode = () => {
-    if (email) setStep(2);
+  const allRequirementsMet = hasMinLength && hasNumber && hasUppercase && passwordsMatch;
+
+  const handleSendCode = async () => {
+    if (!email) return;
+    setErrorMsg(null);
+    try {
+      await forgotPassword({ email }).unwrap();
+      // Always advances to 200, safe
+      setStep(2);
+    } catch (err) {
+      // Backend is account-existence-safe, advance anyway
+      setStep(2);
+    }
   };
 
-  const handleVerify = () => {
-    setStep(3);
+  const getCodeStr = () => otp.join("");
+
+  const handleVerify = async () => {
+    const code = getCodeStr();
+    if (code.length !== 4) return;
+    setErrorMsg(null);
+    try {
+      await verifyResetCode({ email, code }).unwrap();
+      setStep(3);
+    } catch (err: any) {
+      if (err.status === 400 && err.data?.detail) {
+        setErrorMsg(typeof err.data.detail === "string" ? err.data.detail : "Invalid or expired reset code.");
+      } else {
+        setErrorMsg("Failed to verify code.");
+      }
+    }
   };
 
-  const handleDone = () => {
-    router.replace("/auth/signin" as any);
+  const handleDone = async () => {
+    if (!allRequirementsMet) return;
+    setErrorMsg(null);
+    try {
+      await resetPassword({
+        email,
+        code: getCodeStr(),
+        new_password: newPassword,
+        confirm_password: confirmPassword,
+      }).unwrap();
+      router.replace("/auth/signin" as any);
+    } catch (err: any) {
+      if (err.status === 400 && err.data?.detail) {
+        const detailStr = typeof err.data.detail === "string" ? err.data.detail : "Error resetting password.";
+        setErrorMsg(detailStr);
+        if (detailStr.includes("expired") || detailStr.includes("Invalid reset code")) {
+           // Go back to step 1
+           setStep(1);
+           setOtp(["", "", "", ""]);
+        }
+      } else {
+        setErrorMsg("Failed to reset password.");
+      }
+    }
   };
 
   const handleOtpChange = (text: string, index: number) => {
@@ -98,6 +155,12 @@ export default function ForgotPasswordScreen() {
                 Enter your registered email address and we will send you secure recovery instructions.
               </Text>
 
+              {errorMsg && (
+                <View style={styles.errorBanner}>
+                  <Text style={styles.errorText}>{errorMsg}</Text>
+                </View>
+              )}
+
               <View style={styles.inputContainer}>
                 <Text style={[styles.label, { color: "#B6B6BD" }]}>Registered Email address</Text>
                 <View style={[styles.inputWrapper, { backgroundColor: "#0d0d0d", borderColor: theme.colors.cardBorder }]}>
@@ -114,7 +177,7 @@ export default function ForgotPasswordScreen() {
               </View>
 
               <CustomButton
-                label="Send Verification Code"
+                label={isForgotLoading ? "Sending..." : "Send Verification Code"}
                 icon={
                   <Image
                     source={require("../../../public/RightDirectionIcon.svg")}
@@ -124,7 +187,8 @@ export default function ForgotPasswordScreen() {
                 }
                 iconPosition="right"
                 onPress={handleSendCode}
-                style={{ width: "100%", marginBottom: 24, backgroundColor: "#00B4D8", borderWidth: 0 }}
+                disabled={isForgotLoading || !email}
+                style={{ width: "100%", marginBottom: 24, backgroundColor: "#00B4D8", borderWidth: 0, opacity: (isForgotLoading || !email) ? 0.7 : 1 }}
                 textStyle={{ color: "#FFFFFF", fontWeight: "600" }}
                 glow={true}
               />
@@ -159,8 +223,14 @@ export default function ForgotPasswordScreen() {
                 </Text>
                 <Text style={[styles.cardDesc, { color: theme.colors.textSecondary, textAlign: "center", marginBottom: 24 }]}>
                   Recovery link sent to{"\n"}
-                  <Text style={{ color: "#00B4D8" }}>{email || "mahfuzur.work@gmail.com"}</Text>. Please check your{"\n"}inbox and follow the instructions.
+                  <Text style={{ color: "#00B4D8" }}>{email}</Text>. Please check your{"\n"}inbox and follow the instructions.
                 </Text>
+
+                {errorMsg && (
+                  <View style={styles.errorBanner}>
+                    <Text style={styles.errorText}>{errorMsg}</Text>
+                  </View>
+                )}
 
                 <View style={styles.otpContainer}>
                   {otp.map((digit, idx) => (
@@ -182,14 +252,15 @@ export default function ForgotPasswordScreen() {
                 </View>
 
                 <CustomButton
-                  label="Verify"
+                  label={isVerifyLoading ? "Verifying..." : "Verify"}
                   onPress={handleVerify}
-                  style={{ width: "100%", marginBottom: 16, backgroundColor: "#00B4D8", borderWidth: 0 }}
+                  disabled={isVerifyLoading || getCodeStr().length !== 4}
+                  style={{ width: "100%", marginBottom: 16, backgroundColor: "#00B4D8", borderWidth: 0, opacity: (isVerifyLoading || getCodeStr().length !== 4) ? 0.7 : 1 }}
                   textStyle={{ color: "#FFFFFF", fontWeight: "600" }}
                 />
 
-                <Pressable onPress={() => { }}>
-                  <Text style={styles.resendText}>Didn't receive OTP? Try again</Text>
+                <Pressable onPress={handleSendCode}>
+                  <Text style={styles.resendText}>{isForgotLoading ? "Sending..." : "Didn't receive OTP? Try again"}</Text>
                 </Pressable>
               </View>
             </>
@@ -208,6 +279,12 @@ export default function ForgotPasswordScreen() {
               <Text style={[styles.cardDesc, { color: theme.colors.textSecondary }]}>
                 Set your new password to continue
               </Text>
+
+              {errorMsg && (
+                <View style={styles.errorBanner}>
+                  <Text style={styles.errorText}>{errorMsg}</Text>
+                </View>
+              )}
 
               {/* New Password */}
               <View style={styles.inputContainer}>
@@ -259,7 +336,7 @@ export default function ForgotPasswordScreen() {
                 <View style={styles.requirementsGrid}>
                   <View style={styles.reqRow}>
                     <Ionicons name="checkmark" size={14} color={hasMinLength ? "#4ADE80" : "#52525B"} />
-                    <Text style={[styles.reqText, { color: hasMinLength ? "#4ADE80" : "#52525B" }]}>At least 8 characters</Text>
+                    <Text style={[styles.reqText, { color: hasMinLength ? "#4ADE80" : "#52525B" }]}>8 to 128 characters</Text>
                   </View>
                   <View style={styles.reqRow}>
                     <Ionicons name="checkmark" size={14} color={hasUppercase ? "#4ADE80" : "#52525B"} />
@@ -277,9 +354,10 @@ export default function ForgotPasswordScreen() {
               </View>
 
               <CustomButton
-                label="Done"
+                label={isResetLoading ? "Saving..." : "Done"}
                 onPress={handleDone}
-                style={{ width: "100%", marginBottom: 24, backgroundColor: "#FFFFFF", borderWidth: 0 }}
+                disabled={!allRequirementsMet || isResetLoading}
+                style={{ width: "100%", marginBottom: 24, backgroundColor: "#FFFFFF", borderWidth: 0, opacity: (!allRequirementsMet || isResetLoading) ? 0.7 : 1 }}
                 textStyle={{ color: "#000000", fontWeight: "600" }}
               />
 
@@ -350,6 +428,18 @@ const styles = StyleSheet.create({
   tagText: { fontSize: 10, fontWeight: "700", color: "#A1A1AA", letterSpacing: 0.5 },
   cardTitle: { fontSize: 20, fontWeight: "500", marginBottom: 8 },
   cardDesc: { fontSize: 14, lineHeight: 20, marginBottom: 24 },
+  errorBanner: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.5)',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 20,
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 13,
+  },
   inputContainer: { marginBottom: 20, width: "100%" },
   label: { fontSize: 12, fontWeight: "400", marginBottom: 8 },
   inputWrapper: {
