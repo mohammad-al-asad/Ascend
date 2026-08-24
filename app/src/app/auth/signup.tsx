@@ -9,8 +9,7 @@ import {
   TextInput,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useAppDispatch } from "../../redux/store";
-import { loginSuccess, startLogin } from "../../redux/slices/authSlice";
+import { useRegisterMutation } from "../../redux/api/authApi";
 import { useTheme } from "../../utils/useTheme";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CustomButton } from "../../components/ui/CustomButton";
@@ -18,30 +17,43 @@ import { CustomButton } from "../../components/ui/CustomButton";
 export default function SignUpScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const dispatch = useAppDispatch();
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [accountCreated, setAccountCreated] = useState(false);
 
-  const handleSignUp = () => {
-    dispatch(startLogin());
-    dispatch(
-      loginSuccess({
-        username: email || "operator@ascend.mil",
-        userId: "USR-7101",
-        role: "PT/IM",
-        provisionedStatus: "active",
-        firstLoginTimestamp: new Date().toISOString(),
-      })
-    );
-    setAccountCreated(true);
-  };
+  const [register, { isLoading }] = useRegisterMutation();
 
-  const handleGoogleSignIn = () => {
-    handleSignUp();
+  const hasMinLength = password.length >= 8 && password.length <= 128;
+  const hasUppercase = /[A-Z]/.test(password);
+  const hasDigit = /[0-9]/.test(password);
+  const isPasswordValid = hasMinLength && hasUppercase && hasDigit;
+
+  const handleSignUp = async () => {
+    if (!isPasswordValid) return;
+    setErrorMsg(null);
+    try {
+      await register({ full_name: fullName, email, password }).unwrap();
+      // On success, backend logs user in immediately and token is stored via authApi onQueryStarted.
+      setAccountCreated(true);
+    } catch (err: any) {
+      if (err.status === 400) {
+        setErrorMsg("An account with this email already exists.");
+      } else if (err.status === 422) {
+        // Usually array of validation errors, try to extract it
+        const detail = err.data?.detail;
+        if (Array.isArray(detail) && detail.length > 0) {
+          setErrorMsg(detail[0].msg || "Validation error.");
+        } else {
+          setErrorMsg("Validation error. Please check your inputs.");
+        }
+      } else {
+        setErrorMsg("An unexpected error occurred.");
+      }
+    }
   };
 
   return (
@@ -99,11 +111,11 @@ export default function SignUpScreen() {
                   resizeMode="contain"
                 />
               </View>
-              <Text style={styles.successTitle}>Account successfully created for {fullName || "fd"}!</Text>
+              <Text style={styles.successTitle}>Account successfully created for {fullName}!</Text>
               <Text style={styles.successDesc}>Redirecting to secure operator dashboard...</Text>
 
-              <Pressable onPress={() => router.push("/auth/signin" as any)}>
-                <Text style={styles.signOutLink}>Sign In</Text>
+              <Pressable onPress={() => router.replace("/auth/signin" as any)}>
+                <Text style={styles.signOutLink}>Continue to Sign in</Text>
               </Pressable>
             </View>
           ) : (
@@ -113,7 +125,7 @@ export default function SignUpScreen() {
                   styles.googleBtn,
                   pressed && { opacity: 0.8 }
                 ]}
-                onPress={handleGoogleSignIn}
+                onPress={() => {}}
               >
                 <Image
                   source={require("../../../public/GoogleIcon.svg")}
@@ -128,6 +140,12 @@ export default function SignUpScreen() {
                 <Text style={[styles.separatorText, { color: theme.colors.textTertiary }]}>OR</Text>
                 <View style={[styles.separatorLine, { backgroundColor: theme.colors.cardBorder }]} />
               </View>
+
+              {errorMsg && (
+                <View style={styles.errorBanner}>
+                  <Text style={styles.errorText}>{errorMsg}</Text>
+                </View>
+              )}
 
               {/* Full Name Field */}
               <View style={styles.inputContainer}>
@@ -182,10 +200,22 @@ export default function SignUpScreen() {
                     />
                   </Pressable>
                 </View>
+                {/* Password Validation rules */}
+                <View style={styles.passwordRules}>
+                  <Text style={[styles.ruleText, hasMinLength ? styles.ruleValid : styles.ruleInvalid]}>
+                    {hasMinLength ? "✓" : "○"} 8-128 characters
+                  </Text>
+                  <Text style={[styles.ruleText, hasUppercase ? styles.ruleValid : styles.ruleInvalid]}>
+                    {hasUppercase ? "✓" : "○"} At least one uppercase letter
+                  </Text>
+                  <Text style={[styles.ruleText, hasDigit ? styles.ruleValid : styles.ruleInvalid]}>
+                    {hasDigit ? "✓" : "○"} At least one number
+                  </Text>
+                </View>
               </View>
 
               <CustomButton
-                label="Create Account"
+                label={isLoading ? "Creating Account..." : "Create Account"}
                 icon={
                   <Image
                     source={require("../../../public/RightDirectionIcon.svg")}
@@ -195,7 +225,8 @@ export default function SignUpScreen() {
                 }
                 iconPosition="right"
                 onPress={handleSignUp}
-                style={{ width: "100%", marginBottom: 24, backgroundColor: "#00B4D8", borderWidth: 0 }}
+                disabled={isLoading || !email || !fullName || !isPasswordValid}
+                style={{ width: "100%", marginBottom: 24, backgroundColor: "#00B4D8", borderWidth: 0, opacity: (isLoading || !email || !fullName || !isPasswordValid) ? 0.7 : 1 }}
                 textStyle={{ color: "#FFFFFF", fontWeight: "600" }}
                 glow={true}
               />
@@ -303,40 +334,17 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 24,
   },
-  googleBtn: {
-    backgroundColor: "#FFFFFF",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    height: 48,
-    borderRadius: 12,
-    width: "100%",
+  errorBanner: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.5)',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 20,
   },
-  googleIcon: {
-    fontSize: 18,
-    marginRight: 8,
-    color: "#EA4335",
-    fontWeight: "800",
-  },
-  googleBtnText: {
-    color: "#000000",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  separatorContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    width: "100%",
-    marginVertical: 24,
-  },
-  separatorLine: {
-    flex: 1,
-    height: 1,
-  },
-  separatorText: {
-    marginHorizontal: 16,
-    fontSize: 12,
-    fontWeight: "600",
+  errorText: {
+    color: '#EF4444',
+    fontSize: 13,
   },
   inputContainer: {
     marginBottom: 20,
@@ -373,6 +381,20 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#A1A1AA",
   },
+  passwordRules: {
+    marginTop: 8,
+    marginLeft: 4,
+    gap: 4,
+  },
+  ruleText: {
+    fontSize: 12,
+  },
+  ruleValid: {
+    color: "#10B981", // Green
+  },
+  ruleInvalid: {
+    color: "#EF4444", // Red
+  },
   signupRow: {
     flexDirection: "row",
     justifyContent: "center",
@@ -401,40 +423,63 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   successContainer: {
-    backgroundColor: "rgba(3, 165, 182, 0.05)",
-    borderWidth: 1,
-    borderColor: "rgba(3, 165, 182, 0.2)",
-    borderRadius: 12,
-    padding: 32,
+    paddingVertical: 32,
     alignItems: "center",
-    marginBottom: 24,
   },
   successIconWrapper: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    borderWidth: 2,
-    borderColor: "#03A5B6",
-    alignItems: "center",
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "rgba(3, 165, 182, 0.1)",
     justifyContent: "center",
-    marginBottom: 16,
+    alignItems: "center",
+    marginBottom: 20,
   },
   successTitle: {
-    fontSize: 15,
-    fontWeight: "600",
     color: "#FFFFFF",
-    marginBottom: 8,
+    fontSize: 20,
+    fontWeight: "700",
     textAlign: "center",
+    marginBottom: 8,
   },
   successDesc: {
-    fontSize: 13,
     color: "#A1A1AA",
-    marginBottom: 24,
+    fontSize: 14,
     textAlign: "center",
+    marginBottom: 32,
   },
   signOutLink: {
+    color: "#00B4D8",
     fontSize: 15,
-    color: "#03A5B6",
-    fontWeight: "500",
+    fontWeight: "600",
+  },
+  googleBtn: {
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 48,
+    borderRadius: 12,
+    width: "100%",
+  },
+  googleBtnText: {
+    color: "#000000",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  separatorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+    marginVertical: 24,
+  },
+  separatorLine: {
+    flex: 1,
+    height: 1,
+  },
+  separatorText: {
+    marginHorizontal: 16,
+    fontSize: 12,
+    fontWeight: "600",
   },
 });

@@ -5,6 +5,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../../utils/useTheme";
 import { CustomHeader } from "../../../components/ui/CustomHeader";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useRequestDeactivationMutation } from "../../../redux/api/usersApi";
 
 interface HistoryItem {
   id: string;
@@ -62,10 +63,20 @@ export default function SigninActivationScreen() {
   const theme = useTheme();
   const router = useRouter();
   const [modalVisible, setModalVisible] = useState(false);
+  const [requestDeactivation, { isLoading }] = useRequestDeactivationMutation();
 
-  const handleSubmitDeactivation = () => {
-    setModalVisible(false);
-    Alert.alert("Request Submitted", "Deactivation request has been sent for DWS Admin review.");
+  const handleSubmitDeactivation = async () => {
+    try {
+      await requestDeactivation({ reason: "User requested deactivation from app." }).unwrap();
+      setModalVisible(false);
+      Alert.alert("Request Submitted", "Deactivation request has been sent for DWS Admin review.");
+    } catch (err: any) {
+      if (err.status === 400 && err.data?.detail) {
+        Alert.alert("Error", typeof err.data.detail === "string" ? err.data.detail : "A deactivation request is already pending for this account.");
+      } else {
+        Alert.alert("Error", "Failed to submit deactivation request.");
+      }
+    }
   };
 
   return (
@@ -289,9 +300,10 @@ export default function SigninActivationScreen() {
 
               <Pressable
                 onPress={handleSubmitDeactivation}
-                style={[styles.modalBtnSubmit, { backgroundColor: "#F59E0B" }]}
+                style={[styles.modalBtnSubmit, { backgroundColor: "#F59E0B", opacity: isLoading ? 0.7 : 1 }]}
+                disabled={isLoading}
               >
-                <Text style={styles.submitBtnText}>Submit request →</Text>
+                <Text style={styles.submitBtnText}>{isLoading ? "Submitting..." : "Submit request →"}</Text>
               </Pressable>
             </View>
           </View>
