@@ -9,11 +9,12 @@ import {
   TextInput,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useAppDispatch } from "../../redux/store";
-import { loginSuccess, startLogin } from "../../redux/slices/authSlice";
+import { useLoginMutation } from "../../redux/api/authApi";
 import { useTheme } from "../../utils/useTheme";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CustomButton } from "../../components/ui/CustomButton";
+import { useAppDispatch } from "../../redux/store";
+import { setCredentials } from "../../redux/slices/authSlice";
 
 export default function SignInScreen() {
   const theme = useTheme();
@@ -23,19 +24,38 @@ export default function SignInScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [login, { isLoading }] = useLoginMutation();
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const handleEmailSignIn = () => {
-    dispatch(startLogin());
-    dispatch(
-      loginSuccess({
-        username: email || "operator@ascend.mil",
-        userId: "USR-7101",
-        role: "PT/IM",
-        provisionedStatus: "active",
-        firstLoginTimestamp: new Date().toISOString(),
-      })
-    );
-    router.replace("/onboarding" as any);
+  const handleEmailSignIn = async () => {
+    setErrorMsg(null);
+    try {
+      const result = await login({ email, password }).unwrap();
+
+      dispatch(
+        setCredentials({
+          user: result.user,
+          accessToken: result.access_token,
+          refreshToken: result.refresh_token,
+        })
+      );
+
+      if (result.user?.onboarding_completed) {
+        router.replace("/(tabs)/(home)" as any);
+      } else {
+        router.replace("/onboarding" as any);
+      }
+    } catch (err: any) {
+      if (err.status === 401) {
+        setErrorMsg("Invalid email or password.");
+      } else if (err.status === 403) {
+        setErrorMsg("This account is inactive.");
+      } else if (err.status === 503) {
+        setErrorMsg("Database is temporarily unavailable. Please try again shortly.");
+      } else {
+        setErrorMsg("An unexpected error occurred.");
+      }
+    }
   };
 
   const handleGoogleSignIn = () => {
@@ -93,7 +113,7 @@ export default function SignInScreen() {
               styles.googleBtn,
               pressed && { opacity: 0.8 }
             ]}
-            onPress={handleGoogleSignIn}
+            onPress={() => { }}
           >
             <Image
               source={require("../../../public/GoogleIcon.svg")}
@@ -108,6 +128,12 @@ export default function SignInScreen() {
             <Text style={[styles.separatorText, { color: theme.colors.textTertiary }]}>OR</Text>
             <View style={[styles.separatorLine, { backgroundColor: theme.colors.cardBorder }]} />
           </View>
+
+          {errorMsg && (
+            <View style={styles.errorBanner}>
+              <Text style={styles.errorText}>{errorMsg}</Text>
+            </View>
+          )}
 
           {/* Email Field */}
           <View style={styles.inputContainer}>
@@ -153,17 +179,18 @@ export default function SignInScreen() {
           </View>
 
           <CustomButton
-            label="Sign in with Email"
+            label={isLoading ? "Signing in..." : "Sign in with Email"}
             icon={
-              <Image 
-                source={require("../../../public/RightDirectionIcon.svg")} 
-                style={{ width: 16, height: 16 }} 
-                resizeMode="contain" 
+              <Image
+                source={require("../../../public/RightDirectionIcon.svg")}
+                style={{ width: 16, height: 16 }}
+                resizeMode="contain"
               />
             }
             iconPosition="right"
             onPress={handleEmailSignIn}
-            style={{ width: "100%", marginBottom: 24, backgroundColor: "#00B4D8", borderWidth: 0 }}
+            disabled={isLoading || !email || !password}
+            style={{ width: "100%", marginBottom: 24, backgroundColor: "#00B4D8", borderWidth: 0, opacity: (isLoading || !email || !password) ? 0.7 : 1 }}
             textStyle={{ color: "#FFFFFF", fontWeight: "600" }}
             glow={true}
           />
@@ -269,40 +296,17 @@ const styles = StyleSheet.create({
     lineHeight: 20,
     marginBottom: 24,
   },
-  googleBtn: {
-    backgroundColor: "#FFFFFF",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    height: 48,
-    borderRadius: 12,
-    width: "100%",
+  errorBanner: {
+    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(239, 68, 68, 0.5)',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 20,
   },
-  googleIcon: {
-    fontSize: 18,
-    marginRight: 8,
-    color: "#EA4335",
-    fontWeight: "800",
-  },
-  googleBtnText: {
-    color: "#000000",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  separatorContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    width: "100%",
-    marginVertical: 24,
-  },
-  separatorLine: {
-    flex: 1,
-    height: 1,
-  },
-  separatorText: {
-    marginHorizontal: 16,
-    fontSize: 12,
-    fontWeight: "600",
+  errorText: {
+    color: '#EF4444',
+    fontSize: 13,
   },
   inputContainer: {
     marginBottom: 20,
@@ -370,5 +374,34 @@ const styles = StyleSheet.create({
   troubleLink: {
     fontSize: 12,
     fontWeight: "500",
+  },
+  googleBtn: {
+    backgroundColor: "#FFFFFF",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    height: 48,
+    borderRadius: 12,
+    width: "100%",
+  },
+  googleBtnText: {
+    color: "#000000",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  separatorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+    marginVertical: 24,
+  },
+  separatorLine: {
+    flex: 1,
+    height: 1,
+  },
+  separatorText: {
+    marginHorizontal: 16,
+    fontSize: 12,
+    fontWeight: "600",
   },
 });

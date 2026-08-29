@@ -1,29 +1,42 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 
-interface User {
-  username: string;
-  userId: string;
+export interface UserResponse {
+  id: string;
+  email: string;
+  full_name: string;
   role: string;
-  provisionedStatus: string;
-  firstLoginTimestamp: string;
+  is_active: boolean;
+  is_verified: boolean;
+  onboarding_completed: boolean;
+  onboarding_status: string;
+  onboarding_step: number;
+  day0_daily_checkin_status: string | null;
+  created_at: string;
+  updated_at: string;
+  last_login_at: string | null;
 }
 
-interface AuthState {
-  user: User | null;
+export interface AuthState {
+  user: UserResponse | null;
+  accessToken: string | null;
+  refreshToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  isAuthLoading: boolean;
   error: string | null;
-  onboardingStatus: "incomplete" | "complete";
+  // Kept for backward compatibility if needed, but backend handles onboarding state now
   onboardingAnswers: Record<string, any>;
   onboardingFollowUps: Record<string, any>;
 }
 
 const initialState: AuthState = {
   user: null,
+  accessToken: null,
+  refreshToken: null,
   isAuthenticated: false,
   isLoading: false,
+  isAuthLoading: true,
   error: null,
-  onboardingStatus: "incomplete",
   onboardingAnswers: {},
   onboardingFollowUps: {},
 };
@@ -32,29 +45,34 @@ const authSlice = createSlice({
   name: "auth",
   initialState,
   reducers: {
-    startLogin: (state) => {
-      state.isLoading = true;
-      state.error = null;
-    },
-    loginSuccess: (state, action: PayloadAction<User>) => {
-      state.user = action.payload;
+    setCredentials: (
+      state,
+      action: PayloadAction<{ user: UserResponse; accessToken: string; refreshToken: string }>
+    ) => {
+      state.user = action.payload.user;
+      state.accessToken = action.payload.accessToken;
+      state.refreshToken = action.payload.refreshToken;
       state.isAuthenticated = true;
       state.isLoading = false;
+      state.isAuthLoading = false;
       state.error = null;
     },
-    loginFailure: (state, action: PayloadAction<string>) => {
-      state.isLoading = false;
-      state.error = action.payload;
-      state.user = null;
-      state.isAuthenticated = false;
+    setAuthLoading: (state, action: PayloadAction<boolean>) => {
+      state.isAuthLoading = action.payload;
+    },
+    updateUser: (state, action: PayloadAction<UserResponse>) => {
+      state.user = action.payload;
     },
     logout: (state) => {
       state.user = null;
+      state.accessToken = null;
+      state.refreshToken = null;
       state.isAuthenticated = false;
+      state.isAuthLoading = false;
       state.onboardingAnswers = {};
       state.onboardingFollowUps = {};
-      state.onboardingStatus = "incomplete";
     },
+    // Leaving these for now if components still need them before prompt 2 is done
     saveOnboardingAnswer: (
       state,
       action: PayloadAction<{ questionId: number; answer: any }>
@@ -67,21 +85,16 @@ const authSlice = createSlice({
     ) => {
       state.onboardingFollowUps[action.payload.questionId] = action.payload.followUpAnswer;
     },
-    completeOnboarding: (state) => {
-      state.onboardingStatus = "complete";
-    },
   },
 });
 
 export const {
-  startLogin,
-  loginSuccess,
-  loginFailure,
+  setCredentials,
+  setAuthLoading,
+  updateUser,
   logout,
   saveOnboardingAnswer,
   saveOnboardingFollowUp,
-  completeOnboarding,
 } = authSlice.actions;
 
 export default authSlice.reducer;
-export type { User, AuthState };

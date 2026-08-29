@@ -1,15 +1,18 @@
 import React from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, Platform, Alert } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, Platform, Alert, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Circle, Path } from "react-native-svg";
 import { useTheme } from "../../../utils/useTheme";
 import { CustomHeader } from "../../../components/ui/CustomHeader";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useGetRecordsHomeQuery } from "../../../redux/api/recordsApi";
 
 export default function RecordsScreen() {
   const theme = useTheme();
   const router = useRouter();
+
+  const { data, isLoading } = useGetRecordsHomeQuery();
 
   const handleCardPress = (key: string) => {
     switch (key) {
@@ -39,13 +42,21 @@ export default function RecordsScreen() {
     }
   };
 
+  const getCategoryData = (key: string, defaultTitle: string, defaultSub: string) => {
+    if (!data) return { title: defaultTitle, subtitle: defaultSub };
+    const cat = data.categories.find(c => c.key === key);
+    return cat ? { title: cat.label, subtitle: cat.subtitle } : { title: defaultTitle, subtitle: defaultSub };
+  };
+
   const renderCard = (
     key: string,
-    title: string,
-    subtitlePrefix: string,
+    defaultTitle: string,
+    defaultSubtitlePrefix: string,
     iconName: keyof typeof Ionicons.glyphMap,
     badgeText?: string
   ) => {
+    const { title, subtitle } = getCategoryData(key, defaultTitle, defaultSubtitlePrefix);
+
     return (
       <Pressable
         onPress={() => handleCardPress(key)}
@@ -67,10 +78,10 @@ export default function RecordsScreen() {
           <Text style={[styles.cardTitle, { color: theme.colors.text }]}>{title}</Text>
           <View style={styles.subtitleRow}>
             <Text style={[styles.cardSubtitle, { color: theme.colors.textSecondary }]}>
-              {subtitlePrefix}
+              {subtitle}
             </Text>
             {badgeText && (
-              <View style={[styles.statusBadge, { backgroundColor: "rgba(16, 185, 129, 0.12)" }]}>
+              <View style={[styles.statusBadge, { backgroundColor: "rgba(16, 185, 129, 0.12)", marginLeft: 6 }]}>
                 <Text style={[styles.statusBadgeText, { color: theme.colors.success }]}>
                   {badgeText}
                 </Text>
@@ -141,14 +152,18 @@ export default function RecordsScreen() {
         </View>
 
         {/* List of Category Cards */}
-        <View style={styles.cardsList}>
-          {renderCard("uploads", "My Uploads", "Medical record history · last 14 Jun 2026", "folder-outline")}
-          {renderCard("workouts", "Workouts Log", "Recent activity · Strength · Tue 16 Jul", "fitness-outline")}
-          {renderCard("oft", "OFT Status", "Current test cycle · ", "timer-outline", "Current")}
-          {renderCard("reconditioning", "Reconditioning Plan", "Active plan · Return-to-Performance", "flash-outline")}
-          {renderCard("assessments", "Assessments", "Initial status · ", "document-text-outline", "Complete")}
-          {renderCard("flyaway", "Fly Away Kit", "Read-only preview · last export 02 Jul 2026", "cube-outline")}
-        </View>
+        {isLoading ? (
+          <ActivityIndicator color={theme.colors.primary} />
+        ) : (
+          <View style={styles.cardsList}>
+            {renderCard("uploads", "My Uploads", "Medical record history · last 14 Jun 2026", "folder-outline")}
+            {renderCard("workouts", "Workouts Log", "Recent activity · Strength · Tue 16 Jul", "fitness-outline")}
+            {renderCard("oft", "OFT Status", "Current test cycle · ", "timer-outline", "Current")}
+            {renderCard("reconditioning", "Reconditioning Plan", "Active plan · Return-to-Performance", "flash-outline")}
+            {renderCard("assessments", "Assessments", "Initial status · ", "document-text-outline", "Complete")}
+            {renderCard("flyaway", "Fly Away Kit", "Read-only preview · last export 02 Jul 2026", "cube-outline")}
+          </View>
+        )}
 
         {/* Monospace Metadata Footer */}
         <View style={styles.footerContainer}>
