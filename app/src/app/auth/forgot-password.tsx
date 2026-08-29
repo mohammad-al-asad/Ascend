@@ -91,9 +91,9 @@ export default function ForgotPasswordScreen() {
         const detailStr = typeof err.data.detail === "string" ? err.data.detail : "Error resetting password.";
         setErrorMsg(detailStr);
         if (detailStr.includes("expired") || detailStr.includes("Invalid reset code")) {
-           // Go back to step 1
-           setStep(1);
-           setOtp(["", "", "", ""]);
+          // Go back to step 1
+          setStep(1);
+          setOtp(["", "", "", ""]);
         }
       } else {
         setErrorMsg("Failed to reset password.");

@@ -37,13 +37,11 @@ export default function SignUpScreen() {
     setErrorMsg(null);
     try {
       await register({ full_name: fullName, email, password }).unwrap();
-      // On success, backend logs user in immediately and token is stored via authApi onQueryStarted.
       setAccountCreated(true);
     } catch (err: any) {
       if (err.status === 400) {
         setErrorMsg("An account with this email already exists.");
       } else if (err.status === 422) {
-        // Usually array of validation errors, try to extract it
         const detail = err.data?.detail;
         if (Array.isArray(detail) && detail.length > 0) {
           setErrorMsg(detail[0].msg || "Validation error.");
@@ -125,7 +123,7 @@ export default function SignUpScreen() {
                   styles.googleBtn,
                   pressed && { opacity: 0.8 }
                 ]}
-                onPress={() => {}}
+                onPress={() => { }}
               >
                 <Image
                   source={require("../../../public/GoogleIcon.svg")}
