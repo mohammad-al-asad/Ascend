@@ -6,164 +6,15 @@ import { useTheme } from "../../../utils/useTheme";
 import { CustomHeader } from "../../../components/ui/CustomHeader";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-interface DataRow {
-  icon: string;
-  iconColor: string;
-  title: string;
-  desc: string;
-  badge: string;
-}
-
-const WHAT_WE_STORE: DataRow[] = [
-  {
-    icon: "person-outline",
-    iconColor: "#00A3C4",
-    title: "Identity - CAC-sourced",
-    desc: "Name, rank, unit, EDIPI. Read-only — pulled from your Common Access Card.",
-    badge: "Identity",
-  },
-  {
-    icon: "document-text-outline",
-    iconColor: "#60A5FA",
-    title: "Onboarding baseline · O1–O20",
-    desc: "20 readiness questions answered once. Used only to compute your starting OPS band.",
-    badge: "Baseline",
-  },
-  {
-    icon: "checkmark-circle-outline",
-    iconColor: "#10B981",
-    title: "Daily / weekly / monthly check-ins",
-    desc: "OPS scores are computed — never the raw answers — on leadership surfaces.",
-    badge: "Daily · weekly · monthly",
-  },
-  {
-    icon: "pulse-outline",
-    iconColor: "#EF4444",
-    title: "Workouts",
-    desc: "Logged from My Support Team. Strength · cardio · mobility · RPE.",
-    badge: "Activity",
-  },
-  {
-    icon: "time-outline",
-    iconColor: "#EAB308",
-    title: "OFT currency",
-    desc: "Operational Fitness Test events and component status. Updated from your last OFT.",
-    badge: "Operational",
-  },
-  {
-    icon: "folder-open-outline",
-    iconColor: "#A1A1AA",
-    title: "Medical records you upload",
-    desc: "PDF, image, DICOM · up to 50 MB · behind an access-reason gate. Controlled copies, not authoritative.",
-    badge: "Records",
-  },
-];
-
-const WHAT_WE_DO_NOT_STORE: DataRow[] = [
-  {
-    icon: "close-circle-outline",
-    iconColor: "#EF4444",
-    title: "OMPF / iPERMS records",
-    desc: "Your personnel file lives in the official system. Ascend does not mirror it.",
-    badge: "Out of scope",
-  },
-  {
-    icon: "close-circle-outline",
-    iconColor: "#EF4444",
-    title: "MHS GENESIS · AHLTA records",
-    desc: "Official medical-record systems. Ascend is downstream of, not a substitute for, either.",
-    badge: "Out of scope",
-  },
-  {
-    icon: "close-circle-outline",
-    iconColor: "#EF4444",
-    title: "Aggregate leadership views of you by name",
-    desc: "OPS bands only — never raw answers, never your name in a chart.",
-    badge: "Out of scope",
-  },
-];
-
-const WHO_CAN_SEE: DataRow[] = [
-  {
-    icon: "person-outline",
-    iconColor: "#00A3C4",
-    title: "You (the operator)",
-    desc: "Own data — full read. No write to other people's data.",
-    badge: "Operator",
-  },
-  {
-    icon: "people-outline",
-    iconColor: "#60A5FA",
-    title: "SCS (your assigned)",
-    desc: "Workouts, OFT, reconditioning, summary medical guidance. No raw medical record.",
-    badge: "SCS",
-  },
-  {
-    icon: "medical-outline",
-    iconColor: "#10B981",
-    title: "PT/IM (your assigned)",
-    desc: "Full medical-record access for assigned users + rehab / return-to-performance planning.",
-    badge: "PT/IM",
-  },
-  {
-    icon: "nutrition-outline",
-    iconColor: "#F59E0B",
-    title: "Nutrition · Mental Perf · Purpose",
-    desc: "Only authorized, minimum-necessary context. They see what their specialty requires.",
-    badge: "Specialists",
-  },
-  {
-    icon: "bar-chart-outline",
-    iconColor: "#EAB308",
-    title: "Leadership / HPO",
-    desc: "Aggregate only by default. Cells below k = 5 render 'data unavailable'.",
-    badge: "Aggregate",
-  },
-  {
-    icon: "settings-outline",
-    iconColor: "#A1A1AA",
-    title: "DWS Admin",
-    desc: "Audit + RBAC. Clinical content only when flagged for audit, behind a two-person rule.",
-    badge: "Admin",
-  },
-];
-
-const WHAT_WE_AUDIT: DataRow[] = [
-  {
-    icon: "lock-closed-outline",
-    iconColor: "#EF4444",
-    title: "Every medical-record read",
-    desc: "Actor, role, access-reason, record ID, timestamp — written to medical_record_access_audit.",
-    badge: "Audited",
-  },
-  {
-    icon: "person-add-outline",
-    iconColor: "#F59E0B",
-    title: "Every role change",
-    desc: "Two-person rule. A second approver ID is recorded alongside every role mutation.",
-    badge: "Audited",
-  },
-  {
-    icon: "pricetag-outline",
-    iconColor: "#10B981",
-    title: "Every scoring / config change",
-    desc: "Question-bank versions, scoring rules, and Fly Away Kit templates are versioned and effective-dated.",
-    badge: "Audited",
-  },
-  {
-    icon: "shield-half-outline",
-    iconColor: "#60A5FA",
-    title: "OPSEC keyword quarantine",
-    desc: "Every message send is scanned. Level 5 (highest) never routes through messaging — explicit block with user-facing reason.",
-    badge: "Audited",
-  },
-];
+import { useGetDataUseSummaryQuery } from "../../../redux/api/recordsApi";
+import { ActivityIndicator } from "react-native";
 
 export default function DataUseScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const { data, isLoading } = useGetDataUseSummaryQuery();
 
-  const renderSectionList = (items: DataRow[]) => {
+  const renderSectionList = (items: any[]) => {
     return (
       <View style={[styles.cardContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
         {items.map((item, idx) => {
@@ -183,7 +34,7 @@ export default function DataUseScreen() {
             >
               <View style={styles.itemLeft}>
                 <View style={[styles.iconWrapper, { backgroundColor: "#1C1F26" }]}>
-                  <Ionicons name={item.icon as any} size={18} color={item.iconColor} />
+                  <Ionicons name={item.icon as any} size={18} color={item.icon_color} />
                 </View>
                 <View style={styles.itemTextContainer}>
                   <View style={styles.itemTitleRow}>
@@ -192,7 +43,7 @@ export default function DataUseScreen() {
                     </Text>
                   </View>
                   <Text style={[styles.itemDescText, { color: theme.colors.textSecondary }]}>
-                    {item.desc}
+                    {item.description}
                   </Text>
                 </View>
               </View>
@@ -252,32 +103,38 @@ export default function DataUseScreen() {
           </Text>
         </View>
 
-        {/* Section: What Ascend stores */}
-        <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
-          What Ascend stores
-        </Text>
-        {renderSectionList(WHAT_WE_STORE)}
+        {isLoading ? (
+          <ActivityIndicator style={{ margin: 24 }} color={theme.colors.primary} />
+        ) : data ? (
+          <>
+            {/* Section: What Ascend stores */}
+            <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
+              What Ascend stores
+            </Text>
+            {renderSectionList(data.what_we_store)}
 
-        {/* Section: What Ascend does not store */}
-        <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
-          What Ascend does not store
-        </Text>
-        {renderSectionList(WHAT_WE_DO_NOT_STORE)}
+            {/* Section: What Ascend does not store */}
+            <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
+              What Ascend does not store
+            </Text>
+            {renderSectionList(data.what_we_do_not_store)}
 
-        {/* Section: Who can see your data */}
-        <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
-          Who can see your data
-        </Text>
-        <Text style={[styles.sectionSubtext, { color: theme.colors.textSecondary }]}>
-          Access is role-bound and minimum-necessary. Every read of a medical record is audited.
-        </Text>
-        {renderSectionList(WHO_CAN_SEE)}
+            {/* Section: Who can see your data */}
+            <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
+              Who can see your data
+            </Text>
+            <Text style={[styles.sectionSubtext, { color: theme.colors.textSecondary }]}>
+              Access is role-bound and minimum-necessary. Every read of a medical record is audited.
+            </Text>
+            {renderSectionList(data.who_can_see)}
 
-        {/* Section: What we audit */}
-        <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
-          What we audit
-        </Text>
-        {renderSectionList(WHAT_WE_AUDIT)}
+            {/* Section: What we audit */}
+            <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
+              What we audit
+            </Text>
+            {renderSectionList(data.what_we_audit)}
+          </>
+        ) : null}
 
         {/* Section: Your controls */}
         <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>

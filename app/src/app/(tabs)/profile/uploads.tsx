@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Platform, Alert } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Platform, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../../utils/useTheme";
 import { CustomHeader } from "../../../components/ui/CustomHeader";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useGetUploadsQuery } from "../../../redux/api/recordsApi";
 
 export default function MyUploadsScreen() {
   const theme = useTheme();
@@ -14,54 +15,67 @@ export default function MyUploadsScreen() {
 
   const filterTabs = ["All", "Labs", "Imaging", "Specialist", "DME", "Others"];
 
-  const uploadsData = [
-    {
-      id: 1,
-      title: "Lipid panel · 14 Jul 2026",
-      subtitle: "PDF · 2 pages · access-reason on file",
-      status: "Reviewed",
-      icon: "flask-outline" as keyof typeof Ionicons.glyphMap,
-      category: "Labs",
-    },
-    {
-      id: 2,
-      title: "Right knee MRI · 02 Jul 2026",
-      subtitle: "DICOM · 412 MB · access-reason on file",
-      status: "Pending",
-      icon: "image-outline" as keyof typeof Ionicons.glyphMap,
-      category: "Imaging",
-    },
-    {
-      id: 3,
-      title: "Orthopedic consult note · 28 Jun 2026",
-      subtitle: "PDF · 4 pages · access-reason on file",
-      status: "Reviewed",
-      icon: "document-text-outline" as keyof typeof Ionicons.glyphMap,
-      category: "Specialist",
-    },
-    {
-      id: 4,
-      title: "Knee brace RX · 21 Jun 2026",
-      subtitle: "PDF · 1 page · access-reason on file",
-      status: "Pending",
-      icon: "medical-outline" as keyof typeof Ionicons.glyphMap,
-      category: "DME",
-    },
-  ];
+  const mapDocTypeToQuery = (dt: string) => {
+    const map: Record<string, string> = {
+      "Labs": "labs",
+      "Imaging": "imaging",
+      "Specialist": "specialist",
+      "DME": "dme",
+      "Others": "other"
+    };
+    return map[dt] || "";
+  };
+
+  const { data, isLoading } = useGetUploadsQuery({
+    document_type: activeTab === "All" ? undefined : mapDocTypeToQuery(activeTab),
+    search: searchQuery || undefined
+  });
+
+  const getIcon = (docType: string): keyof typeof Ionicons.glyphMap => {
+    switch (docType) {
+      case "labs": return "flask-outline";
+      case "imaging": return "image-outline";
+      case "specialist": return "document-text-outline";
+      case "dme": return "medical-outline";
+      default: return "folder-outline";
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch(status) {
+      case "reviewed_approved": return theme.colors.success;
+      case "reviewed_denied": return theme.colors.dangerText;
+      case "quarantined": return theme.colors.warningText;
+      default: return theme.colors.textSecondary;
+    }
+  };
+
+  const getStatusBg = (status: string) => {
+    switch(status) {
+      case "reviewed_approved": return "rgba(16, 185, 129, 0.12)";
+      case "reviewed_denied": return "rgba(239, 68, 68, 0.12)";
+      case "quarantined": return "rgba(245, 158, 11, 0.12)";
+      default: return "rgba(161, 161, 170, 0.12)";
+    }
+  };
+
+  const formatSize = (bytes: number) => {
+    if (bytes > 1024 * 1024) return (bytes / 1024 / 1024).toFixed(1) + " MB";
+    return (bytes / 1024).toFixed(1) + " KB";
+  };
+
+  const formatDate = (isoStr: string) => {
+    const d = new Date(isoStr);
+    return d.toLocaleDateString("en-GB", { day: 'numeric', month: 'short', year: 'numeric' });
+  };
 
   const handleAddPress = () => {
     router.push("/profile/add-record" as any);
   };
 
-  const handleViewItem = (title: string) => {
-    router.push("/profile/record-detail" as any);
+  const handleViewItem = (id: string) => {
+    router.push({ pathname: "/profile/record-detail", params: { id } } as any);
   };
-
-  const filteredUploads = uploadsData.filter((item) => {
-    const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesTab = activeTab === "All" || item.category === activeTab;
-    return matchesSearch && matchesTab;
-  });
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
@@ -145,10 +159,11 @@ export default function MyUploadsScreen() {
 
         {/* List of Uploads */}
         <View style={[styles.listContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
-          {filteredUploads.length > 0 ? (
-            filteredUploads.map((item, idx) => {
-              const isLast = idx === filteredUploads.length - 1;
-              const isReviewed = item.status === "Reviewed";
+          {isLoading ? (
+            <ActivityIndicator style={{ margin: 24 }} color={theme.colors.primary} />
+          ) : data && data.length > 0 ? (
+            data.map((item, idx) => {
+              const isLast = idx === data.length - 1;
               return (
                 <View
                   key={item.id}
@@ -159,38 +174,31 @@ export default function MyUploadsScreen() {
                 >
                   <View style={styles.listItemLeft}>
                     <View style={[styles.iconWrapper, { backgroundColor: "#141F21" }]}>
-                      <Ionicons name={item.icon} size={18} color={theme.colors.primary} />
+                      <Ionicons name={getIcon(item.document_type)} size={18} color={theme.colors.primary} />
                     </View>
                     <View style={styles.itemTextContent}>
                       <Text style={[styles.itemTitle, { color: theme.colors.text }]} numberOfLines={1}>
-                        {item.title}
+                        {item.file_name} · {formatDate(item.uploaded_at)}
                       </Text>
                       <View style={styles.itemBadgeRow}>
                         <Text style={[styles.itemSubtitle, { color: theme.colors.textSecondary }]} numberOfLines={1}>
-                          {item.subtitle}
+                          {item.file_type} · {formatSize(item.file_size_bytes)} · {item.access_reason}
                         </Text>
                         <View
                           style={[
                             styles.statusBadge,
-                            {
-                              backgroundColor: isReviewed ? "rgba(16, 185, 129, 0.12)" : "rgba(245, 158, 11, 0.12)",
-                            },
+                            { backgroundColor: getStatusBg(item.status) },
                           ]}
                         >
-                          <Text
-                            style={[
-                              styles.statusBadgeText,
-                              { color: isReviewed ? theme.colors.success : theme.colors.warningText },
-                            ]}
-                          >
-                            {item.status}
+                          <Text style={[styles.statusBadgeText, { color: getStatusColor(item.status) }]}>
+                            {item.status.replace("_", " ")}
                           </Text>
                         </View>
                       </View>
                     </View>
                   </View>
 
-                  <Pressable onPress={() => handleViewItem(item.title)} style={styles.viewLink}>
+                  <Pressable onPress={() => handleViewItem(item.id)} style={styles.viewLink}>
                     <Text style={[styles.viewLinkText, { color: theme.colors.primary }]}>View</Text>
                   </Pressable>
                 </View>

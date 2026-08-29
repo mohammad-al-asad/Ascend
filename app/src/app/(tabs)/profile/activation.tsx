@@ -5,67 +5,32 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../../utils/useTheme";
 import { CustomHeader } from "../../../components/ui/CustomHeader";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-interface HistoryItem {
-  id: string;
-  icon: string;
-  iconColor: string;
-  dateStr: string;
-  details: string;
-  status: "OK" | "FAIL";
-}
-
-const SIGNIN_HISTORY: HistoryItem[] = [
-  {
-    id: "h1",
-    icon: "shield-checkmark-outline",
-    iconColor: "#00A3C4",
-    dateStr: "2026-07-18 · 14:22 UTC",
-    details: "CAC · PIV · EDIPI 1234567890 · 10.42.18.7",
-    status: "OK",
-  },
-  {
-    id: "h2",
-    icon: "shield-checkmark-outline",
-    iconColor: "#00A3C4",
-    dateStr: "2026-07-17 · 06:55 UTC",
-    details: "CAC · PIV · EDIPI 1234567890 · 10.42.18.7",
-    status: "OK",
-  },
-  {
-    id: "h3",
-    icon: "key-outline",
-    iconColor: "#8E8E93",
-    dateStr: "2026-07-14 · 19:08 UTC",
-    details: "Backup code · 1 use consumed of 10",
-    status: "OK",
-  },
-  {
-    id: "h4",
-    icon: "shield-checkmark-outline",
-    iconColor: "#00A3C4",
-    dateStr: "2026-07-13 · 07:11 UTC",
-    details: "CAC · PIV · EDIPI 1234567890 · 10.42.18.7",
-    status: "OK",
-  },
-  {
-    id: "h5",
-    icon: "alert-circle-outline",
-    iconColor: "#EF4444",
-    dateStr: "2026-07-12 · 08:42 UTC",
-    details: "CAC insert failed · expired cert · 203.0.113.41",
-    status: "FAIL",
-  },
-];
+import { useGetSignInHistoryQuery, useRequestDeactivationMutation } from "../../../redux/api/usersApi";
 
 export default function SigninActivationScreen() {
   const theme = useTheme();
   const router = useRouter();
   const [modalVisible, setModalVisible] = useState(false);
+  const [requestDeactivation, { isLoading }] = useRequestDeactivationMutation();
+  const { data, isLoading: historyLoading } = useGetSignInHistoryQuery();
 
-  const handleSubmitDeactivation = () => {
-    setModalVisible(false);
-    Alert.alert("Request Submitted", "Deactivation request has been sent for DWS Admin review.");
+  const formatDate = (isoStr: string) => {
+    const d = new Date(isoStr);
+    return d.toLocaleDateString("en-GB", { year: 'numeric', month: 'short', day: 'numeric' }) + " · " + d.toLocaleTimeString("en-GB", { hour: '2-digit', minute:'2-digit', timeZone: "UTC" }) + " UTC";
+  };
+
+  const handleSubmitDeactivation = async () => {
+    try {
+      await requestDeactivation({ reason: "User requested deactivation from app." }).unwrap();
+      setModalVisible(false);
+      Alert.alert("Request Submitted", "Deactivation request has been sent for DWS Admin review.");
+    } catch (err: any) {
+      if (err.status === 400 && err.data?.detail) {
+        Alert.alert("Error", typeof err.data.detail === "string" ? err.data.detail : "A deactivation request is already pending for this account.");
+      } else {
+        Alert.alert("Error", "Failed to submit deactivation request.");
+      }
+    }
   };
 
   return (
@@ -113,19 +78,19 @@ export default function SigninActivationScreen() {
           <View style={styles.topRowColumns}>
             <View style={styles.infoCol}>
               <Text style={[styles.colTag, { color: theme.colors.textTertiary }]}>LAST SIGN-IN</Text>
-              <Text style={[styles.colValLarge, { color: theme.colors.text }]}>Today · 14:22 UTC</Text>
+              <Text style={[styles.colValLarge, { color: theme.colors.text }]}>{data?.last_sign_in ? formatDate(data.last_sign_in.created_at) : "Loading..."}</Text>
               <View style={[styles.badgeOutline, { borderColor: "rgba(0, 163, 196, 0.3)" }]}>
                 <Ionicons name="shield-outline" size={12} color={theme.colors.primary} style={{ marginRight: 4 }} />
-                <Text style={[styles.badgeText, { color: theme.colors.primary }]}>CAC · PIV authenticated</Text>
+                <Text style={[styles.badgeText, { color: theme.colors.primary }]}>{data?.last_sign_in ? `${data.last_sign_in.method} authenticated` : "Loading..."}</Text>
               </View>
             </View>
 
             <View style={styles.infoCol}>
               <Text style={[styles.colTag, { color: theme.colors.textTertiary }]}>METHOD</Text>
-              <Text style={[styles.colValLarge, { color: theme.colors.text }]}>CAC · PIV</Text>
+              <Text style={[styles.colValLarge, { color: theme.colors.text }]}>{data?.last_sign_in ? data.last_sign_in.method : "Loading..."}</Text>
               <View style={[styles.badgeOutline, { borderColor: "rgba(0, 163, 196, 0.3)" }]}>
                 <Ionicons name="key-outline" size={12} color={theme.colors.primary} style={{ marginRight: 4 }} />
-                <Text style={[styles.badgeText, { color: theme.colors.primary }]}>EDIPI 1234567890</Text>
+                <Text style={[styles.badgeText, { color: theme.colors.primary }]}>{data?.last_sign_in ? data.last_sign_in.event_type : "Loading..."}</Text>
               </View>
             </View>
           </View>
@@ -137,19 +102,13 @@ export default function SigninActivationScreen() {
             <View style={styles.detailItem}>
               <Ionicons name="globe-outline" size={16} color={theme.colors.textSecondary} style={{ marginRight: 8 }} />
               <Text style={[styles.detailItemText, { color: theme.colors.textSecondary }]}>
-                10.42.18.7 · USAF base gateway
+                {data?.last_sign_in ? data.last_sign_in.ip_address : "Loading..."}
               </Text>
             </View>
             <View style={styles.detailItem}>
               <Ionicons name="phone-portrait-outline" size={16} color={theme.colors.textSecondary} style={{ marginRight: 8 }} />
               <Text style={[styles.detailItemText, { color: theme.colors.textSecondary }]}>
-                iPhone 14 Pro · iOS 17.5
-              </Text>
-            </View>
-            <View style={styles.detailItem}>
-              <Ionicons name="location-outline" size={16} color={theme.colors.textSecondary} style={{ marginRight: 8 }} />
-              <Text style={[styles.detailItemText, { color: theme.colors.textSecondary }]}>
-                Pentagon / Arlington, VA
+                {data?.last_sign_in ? data.last_sign_in.user_agent : "Loading..."}
               </Text>
             </View>
           </View>
@@ -167,11 +126,13 @@ export default function SigninActivationScreen() {
 
         {/* Card 2: History List */}
         <View style={[styles.cardContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
-          {SIGNIN_HISTORY.map((item, idx) => {
-            const isLast = idx === SIGNIN_HISTORY.length - 1;
+          {data?.recent_history?.map((item, idx) => {
+            const isLast = idx === data.recent_history.length - 1;
+            const icon = item.outcome === "OK" ? "shield-checkmark-outline" : "alert-circle-outline";
+            const iconColor = item.outcome === "OK" ? theme.colors.primary : "#EF4444";
             return (
               <View
-                key={item.id}
+                key={item.created_at + idx}
                 style={[
                   styles.historyRow,
                   {
@@ -181,25 +142,25 @@ export default function SigninActivationScreen() {
                 ]}
               >
                 <View style={[styles.historyIconCircle, { backgroundColor: "#1C1F26" }]}>
-                  <Ionicons name={item.icon as any} size={16} color={item.iconColor} />
+                  <Ionicons name={icon} size={16} color={iconColor} />
                 </View>
 
                 <View style={styles.historyTextCol}>
                   <Text style={[styles.historyDate, { color: theme.colors.text }]}>
-                    {item.dateStr}
+                    {formatDate(item.created_at)}
                   </Text>
                   <Text style={[styles.historyDetails, { color: theme.colors.textSecondary }]}>
-                    {item.details}
+                    {item.method} · {item.event_type} · {item.ip_address}
                   </Text>
                 </View>
 
                 <Text
                   style={[
                     styles.historyStatusText,
-                    { color: item.status === "OK" ? theme.colors.success : "#EF4444" },
+                    { color: item.outcome === "OK" ? theme.colors.success : "#EF4444" },
                   ]}
                 >
-                  {item.status}
+                  {item.outcome}
                 </Text>
               </View>
             );
@@ -289,9 +250,10 @@ export default function SigninActivationScreen() {
 
               <Pressable
                 onPress={handleSubmitDeactivation}
-                style={[styles.modalBtnSubmit, { backgroundColor: "#F59E0B" }]}
+                style={[styles.modalBtnSubmit, { backgroundColor: "#F59E0B", opacity: isLoading ? 0.7 : 1 }]}
+                disabled={isLoading}
               >
-                <Text style={styles.submitBtnText}>Submit request →</Text>
+                <Text style={styles.submitBtnText}>{isLoading ? "Submitting..." : "Submit request →"}</Text>
               </Pressable>
             </View>
           </View>

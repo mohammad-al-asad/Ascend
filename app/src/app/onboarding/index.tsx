@@ -15,7 +15,7 @@ import { useAppDispatch, useAppSelector } from "../../redux/store";
 import {
   saveOnboardingAnswer,
   saveOnboardingFollowUp,
-  completeOnboarding,
+  updateUser,
 } from "../../redux/slices/authSlice";
 import { useTheme } from "../../utils/useTheme";
 import { CustomHeader } from "../../components/ui/CustomHeader";
@@ -121,7 +121,9 @@ export default function OnboardingScreen() {
         resetQuestionState(nextIndex);
       }
     } else if (currentStep === 22) {
-      dispatch(completeOnboarding());
+      if (user) {
+        dispatch(updateUser({ ...user, onboarding_completed: true, onboarding_status: "COMPLETED" }));
+      }
       // Go back to entry index route
       router.replace("/(tabs)" as any);
     }
