@@ -31,8 +31,7 @@ export default function SignInScreen() {
     setErrorMsg(null);
     try {
       const result = await login({ email, password }).unwrap();
-      
-      // Explicitly set the token in authSlice
+
       dispatch(
         setCredentials({
           user: result.user,
@@ -57,6 +56,10 @@ export default function SignInScreen() {
         setErrorMsg("An unexpected error occurred.");
       }
     }
+  };
+
+  const handleGoogleSignIn = () => {
+    handleEmailSignIn();
   };
 
   return (
@@ -110,7 +113,7 @@ export default function SignInScreen() {
               styles.googleBtn,
               pressed && { opacity: 0.8 }
             ]}
-            onPress={() => {}}
+            onPress={() => { }}
           >
             <Image
               source={require("../../../public/GoogleIcon.svg")}
@@ -178,10 +181,10 @@ export default function SignInScreen() {
           <CustomButton
             label={isLoading ? "Signing in..." : "Sign in with Email"}
             icon={
-              <Image 
-                source={require("../../../public/RightDirectionIcon.svg")} 
-                style={{ width: 16, height: 16 }} 
-                resizeMode="contain" 
+              <Image
+                source={require("../../../public/RightDirectionIcon.svg")}
+                style={{ width: 16, height: 16 }}
+                resizeMode="contain"
               />
             }
             iconPosition="right"

@@ -32,21 +32,6 @@ export const authApi = baseApi.injectEndpoints({
         method: "POST",
         body: userData,
       }),
-      async onQueryStarted(arg, { dispatch, queryFulfilled }) {
-        try {
-          const { data } = await queryFulfilled;
-          await setTokens(data.access_token, data.refresh_token, data.user);
-          dispatch(
-            setCredentials({
-              user: data.user,
-              accessToken: data.access_token,
-              refreshToken: data.refresh_token,
-            })
-          );
-        } catch (error) {
-          // Handle error gracefully
-        }
-      },
     }),
     forgotPassword: builder.mutation<any, any>({
       query: (body) => ({

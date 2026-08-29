@@ -11,7 +11,7 @@ function AppNavigator() {
   const dispatch = useAppDispatch();
   const router = useRouter();
   const segments = useSegments();
-  const { isAuthenticated, onboardingStatus, isAuthLoading } = useAppSelector((state) => state.auth);
+  const { isAuthenticated, user, isAuthLoading } = useAppSelector((state) => state.auth);
 
   useEffect(() => {
     const hydrateAuth = async () => {
@@ -48,14 +48,14 @@ function AppNavigator() {
         router.replace("/auth/signin" as any);
       } else if (isAuthenticated && inAuthGroup) {
         // Redirect to home if authenticated but trying to access auth screens
-        if (onboardingStatus === "incomplete") {
+        if (!user?.onboarding_completed) {
           router.replace("/onboarding" as any);
         } else {
           router.replace("/(tabs)/(home)" as any);
         }
       }
     }
-  }, [isAuthenticated, isAuthLoading, segments, onboardingStatus]);
+  }, [isAuthenticated, isAuthLoading, segments, user?.onboarding_completed]);
 
   if (isAuthLoading) {
     return (
