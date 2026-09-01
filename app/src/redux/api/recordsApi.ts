@@ -28,12 +28,15 @@ export interface DataUseDetail {
 }
 
 export interface DataUseSummaryResponse {
-  system_of_record_boundary: string;
-  what_ascend_stores: DataUseDetail[];
-  what_ascend_does_not_store: DataUseDetail[];
-  who_can_see_your_data: DataUseDetail[];
-  what_we_audit: DataUseDetail[];
-  your_controls: DataUseDetail[];
+  system_of_record_boundary?: string;
+  what_ascend_stores?: DataUseDetail[];
+  what_we_store?: DataUseDetail[];
+  what_ascend_does_not_store?: DataUseDetail[];
+  what_we_do_not_store?: DataUseDetail[];
+  who_can_see_your_data?: DataUseDetail[];
+  who_can_see?: DataUseDetail[];
+  what_we_audit?: DataUseDetail[];
+  your_controls?: DataUseDetail[];
 }
 
 export interface EmergencyContacts {
@@ -65,9 +68,12 @@ export interface RehabStatus {
 }
 
 export interface FlyAwayKitResponse {
-  emergency_contacts: EmergencyContacts | null;
-  rehab_status: RehabStatus;
-  assigned_provider: { user_id: string; name: string } | null;
+  emergency_contacts?: EmergencyContacts | null;
+  contacts?: Array<{ role: string; phone: string; name?: string }>;
+  rehab_status?: RehabStatus;
+  rehab_status_lines?: string[];
+  assigned_provider?: { user_id: string; name: string; role?: string; phone_number?: string } | null;
+  last_published_at?: string;
 }
 
 export const recordsApi = baseApi.injectEndpoints({

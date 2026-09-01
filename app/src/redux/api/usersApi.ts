@@ -1,4 +1,6 @@
 import { baseApi } from "./baseApi";
+import { updateUser } from "../slices/authSlice";
+import { saveUser } from "../../utils/authStorage";
 
 export interface ProfileResponse {
   id: string;
@@ -68,6 +70,39 @@ export const usersApi = baseApi.injectEndpoints({
     getProfile: builder.query<ProfileResponse, void>({
       query: () => "/users/profile",
       providesTags: ["Profile"],
+      async onQueryStarted(_arg, { dispatch, queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          if (data) {
+            const updatedUser = {
+              id: data.id,
+              email: data.email,
+              full_name: data.full_name,
+              role: data.role,
+              is_active: true,
+              is_verified: data.is_verified,
+              onboarding_completed: data.onboarding_completed,
+              onboarding_status: data.onboarding_status,
+              onboarding_step:
+                data.onboarding_status === "completed"
+                  ? "day0_daily_checkin"
+                  : "in_progress",
+              day0_daily_checkin_status: data.day0_daily_checkin_status,
+              current_ops_score: data.current_ops_score,
+              current_ops_band: data.current_ops_band,
+              ops_confidence_level: data.ops_confidence_level,
+              unit_id: data.unit_id,
+              created_at: data.member_since,
+              updated_at: data.sign_in_activation?.last_login_at || "",
+              last_login_at: data.sign_in_activation?.last_login_at || null,
+            };
+            dispatch(updateUser(updatedUser as any));
+            await saveUser(updatedUser);
+          }
+        } catch {
+          // ignore background fetch failures
+        }
+      },
     }),
     updateProfileSettings: builder.mutation<ProfileResponse, ProfileSettingsRequest>({
       query: (body) => ({

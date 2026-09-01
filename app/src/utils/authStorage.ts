@@ -77,6 +77,23 @@ export const getUser = async () => {
   }
 };
 
+export const saveUser = async (user: any) => {
+  try {
+    if (isWeb) {
+      if (user) localStorage.setItem(USER_KEY, JSON.stringify(user));
+      else localStorage.removeItem(USER_KEY);
+      return;
+    }
+    if (user) {
+      await SecureStore.setItemAsync(USER_KEY, JSON.stringify(user));
+    } else {
+      await SecureStore.deleteItemAsync(USER_KEY);
+    }
+  } catch (error) {
+    console.error('Error securely storing user', error);
+  }
+};
+
 export const clearTokens = async () => {
   try {
     if (isWeb) {

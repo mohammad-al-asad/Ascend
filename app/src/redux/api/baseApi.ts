@@ -6,7 +6,8 @@ import { logout, setCredentials } from "../slices/authSlice";
 const mutex = new Mutex();
 
 const baseQuery = fetchBaseQuery({
-  baseUrl: process.env.EXPO_PUBLIC_API_URL || "https://monorail-lagoon-pettiness.ngrok-free.dev/api/v1",
+  // baseUrl: process.env.EXPO_PUBLIC_API_URL || "https://monorail-lagoon-pettiness.ngrok-free.dev/api/v1",
+  baseUrl: "https://monorail-lagoon-pettiness.ngrok-free.dev/api/v1",
   prepareHeaders: (headers, { getState }) => {
     const token = (getState() as RootState).auth.accessToken;
     if (token) {
@@ -85,6 +86,6 @@ const baseQueryWithReauth: BaseQueryFn<
 export const baseApi = createApi({
   reducerPath: "baseApi",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["Profile"],
+  tagTypes: ["Profile", "Checkin", "Dashboard", "Onboarding", "Notifications"],
   endpoints: () => ({}),
 });

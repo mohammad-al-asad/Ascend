@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../../utils/useTheme";
@@ -7,7 +7,18 @@ import { CustomHeader } from "../../../components/ui/CustomHeader";
 import { CustomButton } from "../../../components/ui/CustomButton";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useAppSelector } from "../../../redux/store";
-import { isDailyCheckinAvailable, isWeeklyCheckinAvailable, isMonthlyCheckinAvailable } from "../../../utils/cadenceRules";
+import {
+  useGetDailyCheckinQuery,
+  useGetWeeklyCheckinGateQuery,
+  useGetMonthlyCheckinQuery,
+} from "../../../redux/api/checkinApi";
+import {
+  isDailyCheckinAvailable,
+  isWeeklyCheckinAvailable,
+  isMonthlyCheckinAvailable,
+  getDaysUntilWeeklyCheckin,
+  getDaysUntilMonthlyCheckin,
+} from "../../../utils/cadenceRules";
 
 export default function CheckinGatewayScreen() {
   const theme = useTheme();
@@ -22,24 +33,80 @@ export default function CheckinGatewayScreen() {
     last_monthly_submission,
   } = useAppSelector((state) => state.checkin);
 
-  const dailyAvailable = isDailyCheckinAvailable(last_daily_submission);
-  const weeklyAvailable = day0_daily_checkin_status === "completed" && isWeeklyCheckinAvailable(weekly_cadence_start_date, last_weekly_submission);
-  const monthlyAvailable = day0_daily_checkin_status === "completed" && isMonthlyCheckinAvailable(monthly_cadence_start_date, last_monthly_submission);
+  const { data: dailyData, isLoading: isDailyLoading } = useGetDailyCheckinQuery();
+  const { data: weeklyGate, isLoading: isWeeklyLoading } = useGetWeeklyCheckinGateQuery();
+  const { data: monthlyData, isLoading: isMonthlyLoading } = useGetMonthlyCheckinQuery();
+
+  const rawWeeklyGate: any = (weeklyGate as any)?.data || weeklyGate;
+  const rawMonthlyData: any = (monthlyData as any)?.data || monthlyData;
+
+  const daysUntilWeekly =
+    rawWeeklyGate?.days_until_open !== undefined
+      ? Number(rawWeeklyGate.days_until_open)
+      : getDaysUntilWeeklyCheckin(weekly_cadence_start_date);
+
+  // Monthly end date calculation
+  const monthlyEndDateStr = rawMonthlyData?.period_end;
+  let formattedMonthlyEndDate = "";
+  let daysUntilMonthly = getDaysUntilMonthlyCheckin(monthly_cadence_start_date);
+
+  if (monthlyEndDateStr) {
+    const targetDate = new Date(monthlyEndDateStr);
+    if (!isNaN(targetDate.getTime())) {
+      formattedMonthlyEndDate = targetDate.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      const now = new Date();
+      daysUntilMonthly = Math.max(0, Math.ceil((targetDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+    }
+  }
+
+  // Resolution rules
+  const isServerDailyCompleted = dailyData?.already_completed_today;
+  const isLocalDailyAvailable = isDailyCheckinAvailable(last_daily_submission);
+  const dailyAvailable = isServerDailyCompleted !== undefined ? !isServerDailyCompleted : isLocalDailyAvailable;
+
+  const isServerWeeklyOpen = rawWeeklyGate ? (!rawWeeklyGate.locked && rawWeeklyGate.days_until_open === 0) : false;
+  const isLocalWeeklyAvailable =
+    (day0_daily_checkin_status === "completed" || dailyData?.already_completed_today) &&
+    isWeeklyCheckinAvailable(weekly_cadence_start_date || rawWeeklyGate?.cadence_start_date || null, last_weekly_submission);
+  const weeklyAvailable = rawWeeklyGate ? isServerWeeklyOpen : isLocalWeeklyAvailable;
+
+  const isServerMonthlyOpen = rawMonthlyData?.already_completed_this_period === false && daysUntilMonthly === 0;
+  const isLocalMonthlyAvailable =
+    (day0_daily_checkin_status === "completed" || dailyData?.already_completed_today) &&
+    isMonthlyCheckinAvailable(monthly_cadence_start_date, last_monthly_submission);
+  const monthlyAvailable = rawMonthlyData ? isServerMonthlyOpen : isLocalMonthlyAvailable;
 
   const renderCheckinCard = (
     title: string,
     desc: string,
     isAvailable: boolean,
     lockReason: string,
-    onPress: () => void
+    onPress: () => void,
+    isRecommended?: boolean
   ) => {
     return (
-      <View style={[styles.card, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
+      <View
+        style={[
+          styles.card,
+          {
+            backgroundColor: theme.colors.card,
+            borderColor: isRecommended ? theme.colors.primary : theme.colors.cardBorder,
+          },
+        ]}
+      >
         <View style={styles.cardHeader}>
-          <Text style={[styles.cardTitle, { color: theme.colors.text }]}>{title}</Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+            <Text style={[styles.cardTitle, { color: theme.colors.text }]}>{title}</Text>
+            {isRecommended && (
+              <View style={[styles.badge, { backgroundColor: "rgba(0, 163, 196, 0.2)" }]}>
+                <Text style={[styles.badgeText, { color: theme.colors.primary, fontSize: 10 }]}>DUE TODAY</Text>
+              </View>
+            )}
+          </View>
+
           {isAvailable ? (
-            <View style={[styles.badge, { backgroundColor: "rgba(0, 163, 196, 0.15)" }]}>
-              <Text style={[styles.badgeText, { color: theme.colors.primary }]}>Available</Text>
+            <View style={[styles.badge, { backgroundColor: "rgba(34, 197, 94, 0.15)" }]}>
+              <Text style={[styles.badgeText, { color: "#22C55E" }]}>Available</Text>
             </View>
           ) : (
             <View style={[styles.badge, { backgroundColor: "rgba(255, 255, 255, 0.05)" }]}>
@@ -48,12 +115,17 @@ export default function CheckinGatewayScreen() {
           )}
         </View>
         <Text style={[styles.cardDesc, { color: theme.colors.textSecondary }]}>{desc}</Text>
-        
+
         <CustomButton
           label={isAvailable ? "Start check-in" : lockReason}
           onPress={onPress}
           disabled={!isAvailable}
-          style={{ width: "100%", marginTop: 16, backgroundColor: isAvailable ? theme.colors.primary : theme.colors.cardBorder, borderWidth: 0 }}
+          style={{
+            width: "100%",
+            marginTop: 16,
+            backgroundColor: isAvailable ? theme.colors.primary : theme.colors.cardBorder,
+            borderWidth: 0,
+          }}
           textStyle={{ color: isAvailable ? "#FFFFFF" : theme.colors.textTertiary }}
         />
       </View>
@@ -85,33 +157,48 @@ export default function CheckinGatewayScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <Text style={[styles.pageTitle, { color: theme.colors.text }]}>Your active check-ins</Text>
         <Text style={[styles.pageDesc, { color: theme.colors.textSecondary }]}>
-          Complete your check-ins to provide your team with updated readiness data.
+          Complete your scheduled check-ins to maintain your rolling OPS readiness tracking.
         </Text>
 
+        {/* Daily Check-in */}
         {renderCheckinCard(
           "Daily check-in",
-          "Update your daily physical and mental readiness status.",
-          dailyAvailable,
-          "Already submitted",
-          () => router.push("/checkin/daily" as any)
+          "6 quick readiness questions tracking physical, sleep, recovery, mental, and limitation drivers.",
+          Boolean(dailyAvailable && !weeklyAvailable && !monthlyAvailable),
+          dailyAvailable ? "Weekly check-in takes priority today" : "Already submitted today",
+          () => router.push("/checkin/daily" as any),
+          Boolean(dailyAvailable && !weeklyAvailable && !monthlyAvailable)
         )}
 
+        {/* Weekly Check-in */}
         {renderCheckinCard(
           "Weekly check-in",
-          "A deeper review of your consistency and recovery over the last 7 days.",
-          weeklyAvailable,
-          day0_daily_checkin_status === "completed" ? "Already submitted" : "Requires Day 0 completion",
-          () => router.push("/checkin/weekly" as any)
+          rawWeeklyGate?.cadence_label || "10 questions evaluating consistency, training load, and recovery over the last 7 days.",
+          Boolean(weeklyAvailable),
+          daysUntilWeekly > 0
+            ? `Opens in ${daysUntilWeekly} days`
+            : day0_daily_checkin_status === "completed" || dailyData?.already_completed_today
+              ? "Already submitted this period"
+              : "Requires baseline completion",
+          () => router.push("/checkin/weekly" as any),
+          Boolean(weeklyAvailable)
         )}
 
+        {/* Monthly Check-in */}
         {renderCheckinCard(
           "Monthly check-in",
-          "Review your broader wellness trends and align your goals.",
-          monthlyAvailable,
-          day0_daily_checkin_status === "completed" ? "Already submitted" : "Requires Day 0 completion",
-          () => router.push("/checkin/monthly" as any)
+          "Comprehensive monthly wellness review, goal alignment, and longitudinal review.",
+          Boolean(monthlyAvailable),
+          formattedMonthlyEndDate
+            ? `Opens on ${formattedMonthlyEndDate}`
+            : daysUntilMonthly > 0
+              ? `Opens in ${daysUntilMonthly} days`
+              : day0_daily_checkin_status === "completed" || dailyData?.already_completed_today
+                ? "Already submitted this period"
+                : "Requires baseline completion",
+          () => router.push("/checkin/monthly" as any),
+          Boolean(monthlyAvailable)
         )}
-
       </ScrollView>
     </SafeAreaView>
   );

@@ -1,4 +1,3 @@
-import React from "react";
 import {
   View,
   Text,
@@ -7,6 +6,7 @@ import {
   ActivityIndicator,
   ViewStyle,
   TextStyle,
+  StyleProp,
 } from "react-native";
 import { useTheme } from "../../utils/useTheme";
 
@@ -16,7 +16,7 @@ interface CustomButtonProps {
   variant?: "filled" | "outlined" | "text";
   disabled?: boolean;
   loading?: boolean;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
   textStyle?: TextStyle;
   icon?: React.ReactNode;
   iconPosition?: "left" | "right";
@@ -75,9 +75,10 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
       };
     }
 
+    const flatStyle = (StyleSheet.flatten(style) as ViewStyle) || {};
     let glowStyle: ViewStyle = {};
     if (glow && variant === "filled" && !disabled) {
-      const gColor = glowColor || style?.backgroundColor?.toString() || theme.colors.primary;
+      const gColor = glowColor || flatStyle.backgroundColor?.toString() || theme.colors.primary;
       glowStyle = {
         shadowColor: gColor,
         shadowOffset: { width: 0, height: 8 },
@@ -91,7 +92,7 @@ export const CustomButton: React.FC<CustomButtonProps> = ({
       ...baseStyle,
       ...variantStyle,
       ...glowStyle,
-      ...style,
+      ...flatStyle,
     };
   };
 
