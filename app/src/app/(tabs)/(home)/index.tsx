@@ -73,11 +73,12 @@ export default function DashboardScreen() {
   );
 
   // Readiness Score & Ops data
-  const opsScore = homeData?.current_ops?.ops_score ?? (user?.current_ops_score || 78);
-  const opsBand = homeData?.current_ops?.ops_band ?? (user?.current_ops_band || "Ready");
+  const opsScore = homeData?.current_ops?.ops_score ?? user?.current_ops_score ?? 0;
+  const opsBand = homeData?.current_ops?.ops_band ?? user?.current_ops_band ?? "Pending";
   const confidenceLevel =
     homeData?.current_ops?.confidence_level ??
-    (user?.ops_confidence_level || "Medium confidence");
+    user?.ops_confidence_level ??
+    "Medium confidence";
   const trendDelta = homeData?.current_ops?.trend_delta;
   const lastUpdated =
     homeData?.last_updated_label ||
@@ -87,11 +88,11 @@ export default function DashboardScreen() {
 
   // Component Scores for Pentagon Radar
   const componentScores = homeData?.component_scores || user?.current_component_scores || {};
-  const physicalVal = componentScores["Physical Readiness"] ?? 82;
-  const sleepVal = componentScores["Sleep Readiness"] ?? 74;
-  const mentalVal = componentScores["Mental Performance"] ?? 69;
-  const nutritionalVal = componentScores["Nutritional Readiness"] ?? 56;
-  const spiritualVal = componentScores["Spiritual Readiness"] ?? 84;
+  const physicalVal = componentScores["Physical Readiness"] ?? 0;
+  const sleepVal = componentScores["Sleep Readiness"] ?? 0;
+  const mentalVal = componentScores["Mental Performance"] ?? 0;
+  const nutritionalVal = componentScores["Nutritional Readiness"] ?? 0;
+  const spiritualVal = componentScores["Spiritual Readiness"] ?? 0;
 
   // SVG Radar Chart Constants
   const centerX = 140;
@@ -191,101 +192,9 @@ export default function DashboardScreen() {
     setIsDetailSheetVisible(true);
   };
 
-  // Fallback driver list if server array is empty
-  const defaultDrivers: DriverTrend[] = [
-    {
-      readiness_component: "Physical Readiness",
-      signal_label: "Physical",
-      current_score: physicalVal,
-      stale: false,
-      trend_points: [78, 80, 82, 85, physicalVal],
-    },
-    {
-      readiness_component: "Sleep Readiness",
-      signal_label: "Sleep",
-      current_score: sleepVal,
-      stale: false,
-      trend_points: [70, 72, 75, 71, sleepVal],
-    },
-    {
-      readiness_component: "Mental Performance",
-      signal_label: "Mental",
-      current_score: mentalVal,
-      stale: false,
-      trend_points: [65, 68, 67, 70, mentalVal],
-    },
-    {
-      readiness_component: "Nutritional Readiness",
-      signal_label: "Nutritional",
-      current_score: nutritionalVal,
-      stale: false,
-      trend_points: [52, 55, 54, 58, nutritionalVal],
-    },
-    {
-      readiness_component: "Spiritual Readiness",
-      signal_label: "Spiritual",
-      current_score: spiritualVal,
-      stale: false,
-      trend_points: [80, 82, 83, 85, spiritualVal],
-    },
-  ];
-
-  const driverTrends =
-    homeData?.driver_trends && homeData.driver_trends.length > 0
-      ? homeData.driver_trends
-      : defaultDrivers;
-
-  // Fallback support pathways preview
-  const defaultSupportPreview: SupportPreviewItem[] = [
-    {
-      key: "scs",
-      label: "SCS / Coach",
-      description: "Strength & Conditioning",
-      availability_status: "Active",
-    },
-    {
-      key: "pt_im",
-      label: "PT / IM",
-      description: "Physical Therapy & Rehab",
-      availability_status: "Available",
-    },
-    {
-      key: "chaplain",
-      label: "Chaplain",
-      description: "Confidential Spiritual Support",
-      availability_status: "Available",
-    },
-  ];
-
-  const supportPreviewList =
-    homeData?.support_preview && homeData.support_preview.length > 0
-      ? homeData.support_preview
-      : defaultSupportPreview;
-
-  // Fallback upcoming agenda
-  const defaultUpcoming: UpcomingItem[] = [
-    {
-      key: "weekly_checkin",
-      title: "Weekly cadence gate",
-      subtitle: weeklyGate?.locked ? `Opens in ${weeklyGate.days_until_open} days` : "Open now",
-      tag: "Cadence",
-    },
-    {
-      key: "oft",
-      title: "OFT record status",
-      subtitle: "View operator test scores",
-      tag: "Operational",
-    },
-    {
-      key: "initial_assessment",
-      title: "Assessments",
-      subtitle: "Active and completed records",
-      tag: "Program",
-    },
-  ];
-
-  const upcomingList =
-    homeData?.upcoming && homeData.upcoming.length > 0 ? homeData.upcoming : defaultUpcoming;
+  const driverTrends: DriverTrend[] = homeData?.driver_trends || [];
+  const supportPreviewList: SupportPreviewItem[] = homeData?.support_preview || [];
+  const upcomingList: UpcomingItem[] = homeData?.upcoming || [];
 
   // Sparkline generator from numeric trend points
   const renderSparkline = (points: number[], color: string) => {
@@ -805,101 +714,109 @@ export default function DashboardScreen() {
         </View>
 
         {/* Talk to your team */}
-        <View style={[styles.sectionHeaderRow, { marginTop: 12 }]}>
-          <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>Talk to your team</Text>
-          <Pressable style={styles.openSupportBtn} onPress={() => router.push("/(tabs)/support" as any)}>
-            <Text style={[styles.openSupportText, { color: theme.colors.primary }]}>Open support</Text>
-            <Ionicons name="arrow-forward" size={14} color={theme.colors.primary} style={{ marginLeft: 4 }} />
-          </Pressable>
-        </View>
-
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScrollContent}>
-          {supportPreviewList.map((item, idx) => {
-            const iconName =
-              item.key === "scs"
-                ? "barbell-outline"
-                : item.key === "pt_im"
-                  ? "heart-half-outline"
-                  : "shield-checkmark-outline";
-            const iconColor =
-              item.key === "scs"
-                ? theme.colors.primary
-                : item.key === "pt_im"
-                  ? "#10B981"
-                  : "#F59E0B";
-
-            return (
-              <Pressable
-                key={item.key || idx}
-                onPress={() => router.push("/(tabs)/support" as any)}
-                style={[styles.teamCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}
-              >
-                <View style={[styles.teamIconWrapper, { backgroundColor: `${iconColor}1A` }]}>
-                  <Ionicons name={iconName as any} size={20} color={iconColor} />
-                </View>
-                <Text style={[styles.teamTitle, { color: theme.colors.text }]}>{item.label}</Text>
-                <Text style={[styles.teamDesc, { color: theme.colors.textSecondary }]} numberOfLines={2}>
-                  {item.description}
-                </Text>
-                <View style={styles.teamStatusBadge}>
-                  <Text style={[styles.teamStatusText, { color: theme.colors.textSecondary }]}>
-                    {item.availability_status}
-                  </Text>
-                </View>
+        {supportPreviewList.length > 0 && (
+          <>
+            <View style={[styles.sectionHeaderRow, { marginTop: 12 }]}>
+              <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>Talk to your team</Text>
+              <Pressable style={styles.openSupportBtn} onPress={() => router.push("/(tabs)/support" as any)}>
+                <Text style={[styles.openSupportText, { color: theme.colors.primary }]}>Open support</Text>
+                <Ionicons name="arrow-forward" size={14} color={theme.colors.primary} style={{ marginLeft: 4 }} />
               </Pressable>
-            );
-          })}
-        </ScrollView>
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScrollContent}>
+              {supportPreviewList.map((item, idx) => {
+                const iconName =
+                  item.key === "scs"
+                    ? "barbell-outline"
+                    : item.key === "pt_im"
+                      ? "heart-half-outline"
+                      : "shield-checkmark-outline";
+                const iconColor =
+                  item.key === "scs"
+                    ? theme.colors.primary
+                    : item.key === "pt_im"
+                      ? "#10B981"
+                      : "#F59E0B";
+
+                return (
+                  <Pressable
+                    key={item.key || idx}
+                    onPress={() => router.push("/(tabs)/support" as any)}
+                    style={[styles.teamCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}
+                  >
+                    <View style={[styles.teamIconWrapper, { backgroundColor: `${iconColor}1A` }]}>
+                      <Ionicons name={iconName as any} size={20} color={iconColor} />
+                    </View>
+                    <Text style={[styles.teamTitle, { color: theme.colors.text }]}>{item.label}</Text>
+                    <Text style={[styles.teamDesc, { color: theme.colors.textSecondary }]} numberOfLines={2}>
+                      {item.description}
+                    </Text>
+                    <View style={styles.teamStatusBadge}>
+                      <Text style={[styles.teamStatusText, { color: theme.colors.textSecondary }]}>
+                        {item.availability_status}
+                      </Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </ScrollView>
+          </>
+        )}
 
         {/* Upcoming Section */}
-        <Text style={[styles.sectionHeading, { color: theme.colors.text, marginTop: 16, marginBottom: 12 }]}>
-          Upcoming
-        </Text>
+        {upcomingList.length > 0 && (
+          <>
+            <Text style={[styles.sectionHeading, { color: theme.colors.text, marginTop: 16, marginBottom: 12 }]}>
+              Upcoming
+            </Text>
 
-        <View style={[styles.agendaCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
-          {upcomingList.map((item, idx) => {
-            const isLast = idx === upcomingList.length - 1;
-            const iconName =
-              item.key === "weekly_checkin"
-                ? "calendar-outline"
-                : item.key === "oft"
-                  ? "fitness-outline"
-                  : "clipboard-outline";
+            <View style={[styles.agendaCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
+              {upcomingList.map((item, idx) => {
+                const isLast = idx === upcomingList.length - 1;
+                const iconName =
+                  item.key === "weekly_checkin"
+                    ? "calendar-outline"
+                    : item.key === "oft"
+                      ? "fitness-outline"
+                      : "clipboard-outline";
 
-            const routeTarget =
-              item.key === "weekly_checkin"
-                ? "/(tabs)/(home)/checkin"
-                : item.key === "oft"
-                  ? "/(tabs)/(home)/oft"
-                  : "/(tabs)/(home)/assessments";
+                const routeTarget =
+                  item.key === "weekly_checkin"
+                    ? "/(tabs)/(home)/checkin"
+                    : item.key === "oft"
+                      ? "/(tabs)/(home)/oft"
+                      : "/(tabs)/(home)/assessments";
 
-            return (
-              <Pressable
-                key={item.key || idx}
-                onPress={() => router.push(routeTarget as any)}
-                style={[
-                  styles.agendaItemRow,
-                  !isLast && { borderBottomWidth: 1, borderBottomColor: theme.colors.cardBorder },
-                ]}
-              >
-                <View style={styles.agendaLeft}>
-                  <View style={[styles.agendaIconWrapper, { backgroundColor: "#27272A" }]}>
-                    <Ionicons name={iconName as any} size={16} color={theme.colors.textSecondary} />
-                  </View>
-                  <View style={{ marginLeft: 12, flex: 1 }}>
-                    <Text style={[styles.agendaItemTitle, { color: theme.colors.text }]}>{item.title}</Text>
-                    <Text style={[styles.agendaItemSubtitle, { color: theme.colors.textSecondary }]}>
-                      {item.subtitle}
-                    </Text>
-                  </View>
-                </View>
-                <View style={[styles.agendaBadge, { backgroundColor: "#27272A" }]}>
-                  <Text style={[styles.agendaBadgeText, { color: theme.colors.text }]}>{item.tag}</Text>
-                </View>
-              </Pressable>
-            );
-          })}
-        </View>
+                return (
+                  <Pressable
+                    key={item.key || idx}
+                    onPress={() => router.push(routeTarget as any)}
+                    style={[
+                      styles.agendaItemRow,
+                      !isLast && { borderBottomWidth: 1, borderBottomColor: theme.colors.cardBorder },
+                    ]}
+                  >
+                    <View style={styles.agendaLeft}>
+                      <View style={[styles.agendaIconWrapper, { backgroundColor: "#27272A" }]}>
+                        <Ionicons name={iconName as any} size={16} color={theme.colors.textSecondary} />
+                      </View>
+                      <View style={{ marginLeft: 12, flex: 1 }}>
+                        <Text style={[styles.agendaItemTitle, { color: theme.colors.text }]}>{item.title}</Text>
+                        <Text style={[styles.agendaItemSubtitle, { color: theme.colors.textSecondary }]}>
+                          {item.subtitle}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={[styles.agendaBadge, { backgroundColor: "#27272A" }]}>
+                      <Text style={[styles.agendaBadgeText, { color: theme.colors.text }]}>{item.tag}</Text>
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          </>
+        )}
 
         {/* Footer */}
         <Text style={[styles.footerText, { color: theme.colors.textTertiary }]}>

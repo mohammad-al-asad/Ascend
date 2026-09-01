@@ -1,131 +1,309 @@
-import React, { useState, useRef } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput } from "react-native";
+import React, { useState, useRef, useEffect } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  TextInput,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+} from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../../utils/useTheme";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CustomBottomSheet } from "../../../components/ui/CustomBottomSheet";
-
-interface Message {
-  id: string;
-  sender: "provider" | "operator";
-  text: string;
-  time: string;
-}
-
-const BECKER_MESSAGES: Message[] = [
-  {
-    id: "m1",
-    sender: "provider",
-    text: "Morning capt.lin — sharing the sleep plan we built from Q12 last week. Targets are based on your D5 trajectory, not your raw number.",
-    time: "09:12",
-  },
-  {
-    id: "m2",
-    sender: "operator",
-    text: "Thanks TSgt Becker. Question: do I cut the late caffeine entirely or taper it? I usually have one around 1900.",
-    time: "09:14",
-  },
-  {
-    id: "m3",
-    sender: "provider",
-    text: "Taper. Move it to 1600 for 5 days, then drop. Plan adjusts on day 3 if your check-in shows the window closing. No raw score — just the bucket.",
-    time: "09:16",
-  },
-  {
-    id: "m4",
-    sender: "operator",
-    text: "Got it. I'll log in the plan_link and re-check Wednesday.",
-    time: "09:18",
-  },
-  {
-    id: "m5",
-    sender: "provider",
-    text: "Perfect. Also flagging: your Sunday PT session moved earlier by 30 min — that's PT/IM scope, not mine. I'll coordinate with them through the SCS handoff.",
-    time: "09:21",
-  },
-  {
-    id: "m6",
-    sender: "operator",
-    text: "Copy. Quick clarification — the plan-link ID in the assignment note matches the one in my trends card, right?",
-    time: "09:24",
-  },
-  {
-    id: "m7",
-    sender: "provider",
-    text: "Same plan_link. If it ever drifts, ping me here and I'll re-issue. PT/IM is on a separate thread with their own trace.",
-    time: "09:26",
-  },
-  {
-    id: "m8",
-    sender: "operator",
-    text: "Confirmed. I'll start tonight and check in Wednesday.",
-    time: "09:28",
-  },
-];
-
-const LIN_MESSAGES: Message[] = [
-  {
-    id: "m1",
-    sender: "provider",
-    text: "Marcus, review of your 7D physical score shows a slight drop. How is the left shoulder knee extension feeling post-workout?",
-    time: "09:10",
-  },
-  {
-    id: "m2",
-    sender: "operator",
-    text: "A bit tight after the overhead lifts yesterday, Capt. No sharp pain, just dull stiffness.",
-    time: "09:12",
-  },
-  {
-    id: "m3",
-    sender: "provider",
-    text: "Stick to the pre-hab routine: 3 sets of banded external rotations before lifting. If tightness persists past 48h, drop the overhead weight by 10%.",
-    time: "09:15",
-  },
-  {
-    id: "m4",
-    sender: "operator",
-    text: "Understood, I'll log it in the pre-hab tracker and follow up after Friday's session.",
-    time: "09:18",
-  },
-];
+import * as DocumentPicker from "expo-document-picker";
+import { useAppSelector } from "../../../redux/store";
+import { useGetMyTeamQuery } from "../../../redux/api/supportApi";
+import {
+  useGetThreadWithUserQuery,
+  useSendMessageMutation,
+  useLazyGetMessageTraceQuery,
+  useGetThreadsQuery,
+  MessageResponse,
+} from "../../../redux/api/messagingApi";
 
 export default function ChatScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const { provider } = useLocalSearchParams();
-  const isLin = provider === "lin";
+  const params = useLocalSearchParams<{
+    other_user_id?: string;
+    provider?: string;
+    provider_name?: string;
+    role_title?: string;
+    pathway_key?: string;
+  }>();
 
-  const providerName = isLin ? "Capt J. Lin" : "Tsgt B. Becker";
-  const providerInitials = isLin ? "CL" : "BB";
-  const providerRole = isLin ? "PT/IM - Physical Therapy" : "SCS - Strength & Conditioning";
+  const user = useAppSelector((state) => state.auth.user);
+  const accessToken = useAppSelector((state) => state.auth.accessToken);
+
+  const { data: pathways } = useGetMyTeamQuery();
+  const { data: threadsData } = useGetThreadsQuery();
+
+  const isLin = params.provider === "lin" || params.role_title?.includes("PT");
+
+  // Resolve target provider and other_user_id
+  const matchedPathway = (pathways || []).find(
+    (p) =>
+      p.provider?.user_id === params.other_user_id ||
+      (params.provider === "lin" && (p.pathway_key === "PT-IM" || p.pathway_key === "PT" || p.pathway_key === "PT/IM")) ||
+      (params.provider === "becker" && p.pathway_key === "SCS") ||
+      p.pathway_key === params.pathway_key
+  );
+
+  const targetUserId =
+    params.other_user_id ||
+    matchedPathway?.provider?.user_id ||
+    "";
+
+  const providerName =
+    params.provider_name ||
+    matchedPathway?.provider?.name ||
+    (isLin ? "Capt J. Lin" : "TSgt B. Becker");
+
+  const providerRole =
+    params.role_title ||
+    matchedPathway?.role_title ||
+    matchedPathway?.label ||
+    (isLin ? "PT/IM - Physical Therapy" : "SCS - Strength & Conditioning");
+
+  const providerInitials = providerName
+    .split(" ")
+    .map((n) => n[0])
+    .filter(Boolean)
+    .join("")
+    .slice(0, 2)
+    .toUpperCase() || "PR";
+
   const headerIcon = isLin ? "shield-outline" : "fitness-outline";
 
-  const [messages, setMessages] = useState<Message[]>(isLin ? LIN_MESSAGES : BECKER_MESSAGES);
+  // Find unread count for this thread
+  const threadSummary = Array.isArray(threadsData)
+    ? threadsData.find((t) => t.other_user_id === targetUserId)
+    : (threadsData as any)?.threads?.find((t: any) => t.other_user_id === targetUserId);
+
+  const unreadCount = threadSummary?.unread_count ?? 0;
+
+  // RTK Query: fetch thread messages
+  const isRealTargetId = Boolean(targetUserId && !targetUserId.startsWith("provider_"));
+  const {
+    data: threadData,
+    isLoading: isThreadLoading,
+    refetch: refetchThread,
+  } = useGetThreadWithUserQuery(targetUserId, {
+    skip: !isRealTargetId,
+  });
+
+  const [sendMessageMutation, { isLoading: isSending }] = useSendMessageMutation();
+  const [fetchTrace, { data: traceData, isFetching: isTraceLoading }] = useLazyGetMessageTraceQuery();
+
+  // Local state for messages
+  const [messages, setMessages] = useState<MessageResponse[]>([]);
   const [inputText, setInputText] = useState("");
+  const [attachedFile, setAttachedFile] = useState<DocumentPicker.DocumentPickerAsset | null>(null);
   const [sheetVisible, setSheetVisible] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
 
-  const handleSend = () => {
-    if (!inputText.trim()) return;
+  // Sync with server messages when loaded
+  useEffect(() => {
+    if (threadData?.messages) {
+      setMessages(threadData.messages);
+    }
+  }, [threadData]);
 
-    const now = new Date();
-    const timeStr = now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
-    const newMessage: Message = {
-      id: Math.random().toString(),
-      sender: "operator",
-      text: inputText,
-      time: timeStr,
+  // WebSocket Live Real-Time Updates
+  useEffect(() => {
+    if (!accessToken) return;
+
+    const baseApiUrl = "https://monorail-lagoon-pettiness.ngrok-free.dev/api/v1";
+    const wsUrl = `${baseApiUrl.replace(/^http/, "ws")}/messaging/live?token=${encodeURIComponent(accessToken)}`;
+
+    let ws: WebSocket | null = null;
+    try {
+      ws = new WebSocket(wsUrl);
+
+      ws.onopen = () => {
+        console.log("Messaging WebSocket connected");
+      };
+
+      ws.onmessage = (event) => {
+        try {
+          const incoming: MessageResponse = JSON.parse(event.data);
+          if (incoming && incoming.body) {
+            // If the message is for this thread, append it
+            if (
+              !targetUserId ||
+              incoming.sender_id === targetUserId ||
+              incoming.recipient_id === targetUserId ||
+              incoming.sender_id === user?.id
+            ) {
+              setMessages((prev) => {
+                if (prev.some((m) => m.id === incoming.id)) return prev;
+                return [...prev, incoming];
+              });
+              setTimeout(() => {
+                scrollViewRef.current?.scrollToEnd({ animated: true });
+              }, 100);
+            }
+          }
+        } catch (e) {
+          console.log("Error parsing WS message:", e);
+        }
+      };
+
+      ws.onerror = (err) => {
+        console.log("Messaging WebSocket error:", err);
+      };
+
+      ws.onclose = (event) => {
+        console.log("Messaging WebSocket closed:", event.code);
+      };
+    } catch (err) {
+      console.log("Failed to initialize WebSocket:", err);
+    }
+
+    return () => {
+      if (ws) {
+        ws.close();
+      }
+    };
+  }, [accessToken, targetUserId, user?.id]);
+
+  // Pick Document / Attachment
+  const handlePickAttachment = async () => {
+    if (attachedFile) {
+      setAttachedFile(null);
+      return;
+    }
+
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["application/pdf", "image/*"],
+        copyToCacheDirectory: true,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const file = result.assets[0];
+        if (file.size && file.size > 20 * 1024 * 1024) {
+          Alert.alert("File Too Large", "Attachments must be 20MB or smaller.");
+          return;
+        }
+        setAttachedFile(file);
+      }
+    } catch (err) {
+      console.log("Document pick error:", err);
+      Alert.alert("Error", "Could not pick attachment.");
+    }
+  };
+
+  // Open Audit Sheet
+  const handleOpenAuditSheet = () => {
+    setSheetVisible(true);
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage?.id && !lastMessage.id.startsWith("temp_")) {
+      fetchTrace(lastMessage.id);
+    }
+  };
+
+  // Send Message
+  const handleSend = async () => {
+    const textToSend = inputText.trim();
+    if (!textToSend && !attachedFile) return;
+
+    const nowIso = new Date().toISOString();
+    const tempId = `temp_${Date.now()}`;
+
+    // Optimistic local echo
+    const optimisticMessage: MessageResponse = {
+      id: tempId,
+      sender_id: user?.id || "operator_me",
+      recipient_id: targetUserId,
+      body: textToSend,
+      attachment: attachedFile
+        ? {
+            filename: attachedFile.name,
+            url: attachedFile.uri,
+            size: attachedFile.size,
+          }
+        : null,
+      created_at: nowIso,
     };
 
-    setMessages([...messages, newMessage]);
+    setMessages((prev) => [...prev, optimisticMessage]);
     setInputText("");
+    const fileToSend = attachedFile;
+    setAttachedFile(null);
 
-    // Defer scroll to end
     setTimeout(() => {
       scrollViewRef.current?.scrollToEnd({ animated: true });
     }, 100);
+
+    // If server target ID is present, execute mutation
+    if (targetUserId) {
+      const formData = new FormData();
+      formData.append("recipient_id", targetUserId);
+      formData.append("body", textToSend);
+
+      if (fileToSend) {
+        formData.append("file", {
+          uri: fileToSend.uri,
+          name: fileToSend.name,
+          type: fileToSend.mimeType || "application/octet-stream",
+        } as any);
+      }
+
+      try {
+        const realMsg = await sendMessageMutation(formData).unwrap();
+        // Replace optimistic echo with server message
+        setMessages((prev) => prev.map((m) => (m.id === tempId ? realMsg : m)));
+      } catch (err: any) {
+        console.log("Send message error:", err);
+        const errorData = err?.data;
+        let errorMsg = "Failed to send message.";
+
+        if (errorData?.detail?.message) {
+          errorMsg = errorData.detail.message;
+          if (Array.isArray(errorData.detail.blocked_terms) && errorData.detail.blocked_terms.length > 0) {
+            errorMsg += `\n\nBlocked terms: ${errorData.detail.blocked_terms.join(", ")}`;
+            if (errorData.detail.severity) {
+              errorMsg += ` (Severity ${errorData.detail.severity})`;
+            }
+          }
+        } else if (typeof errorData?.detail === "string") {
+          errorMsg = errorData.detail;
+        }
+
+        Alert.alert("OPSEC / Send Error", errorMsg);
+        // Remove failed optimistic message
+        setMessages((prev) => prev.filter((m) => m.id !== tempId));
+        setInputText(textToSend);
+        setAttachedFile(fileToSend);
+      }
+    }
+  };
+
+  const formatMessageTime = (isoString: string) => {
+    try {
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) return "";
+      return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+    } catch {
+      return "";
+    }
+  };
+
+  const formatMessageDate = (isoString: string) => {
+    try {
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) return "Today";
+      return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+    } catch {
+      return "Today";
+    }
   };
 
   return (
@@ -164,12 +342,14 @@ export default function ChatScreen() {
           </View>
         </View>
 
-        <Pressable onPress={() => setSheetVisible(true)} style={styles.headerRightContainer}>
+        <Pressable onPress={handleOpenAuditSheet} style={styles.headerRightContainer}>
           <View style={[styles.headerRightCircle, { borderColor: theme.colors.cardBorder }]}>
             <Ionicons name={headerIcon as any} size={18} color={theme.colors.text} />
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>8</Text>
-            </View>
+            {unreadCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{unreadCount}</Text>
+              </View>
+            )}
           </View>
         </Pressable>
       </View>
@@ -189,164 +369,276 @@ export default function ChatScreen() {
         showsVerticalScrollIndicator={false}
         onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}
       >
-        <Text style={[styles.dateDividerText, { color: theme.colors.textSecondary }]}>
-          Today · 2026-07-18
-        </Text>
-
-        {messages.map((item) => {
-          const isOperator = item.sender === "operator";
-          return (
-            <View
-              key={item.id}
-              style={[
-                styles.messageRow,
-                isOperator ? styles.rowOperator : styles.rowProvider,
-              ]}
-            >
-              <View
-                style={[
-                  styles.bubble,
-                  isOperator
-                    ? [styles.bubbleOperator, { backgroundColor: "#0F5B6C" }]
-                    : [styles.bubbleProvider, { backgroundColor: "#1C1C1E" }],
-                ]}
-              >
-                <Text style={styles.messageText}>{item.text}</Text>
-                <View style={styles.bubbleFooter}>
-                  <Text style={[styles.bubbleTime, { color: theme.colors.textTertiary }]}>
-                    {item.time}
-                  </Text>
-                  {isOperator && (
-                    <Ionicons
-                      name="checkmark"
-                      size={12}
-                      color="#00A3C4"
-                      style={{ marginLeft: 4 }}
-                    />
-                  )}
-                </View>
-              </View>
+        {isThreadLoading && messages.length === 0 ? (
+          <View style={{ paddingVertical: 40, alignItems: "center" }}>
+            <ActivityIndicator size="small" color={theme.colors.primary} />
+            <Text style={{ color: theme.colors.textSecondary, marginTop: 12, fontSize: 13 }}>
+              Loading conversation...
+            </Text>
+          </View>
+        ) : messages.length === 0 ? (
+          <View style={{ paddingVertical: 60, alignItems: "center", paddingHorizontal: 32 }}>
+            <View style={[styles.emptyIconCircle, { backgroundColor: theme.colors.cardBorder }]}>
+              <Ionicons name="chatbubbles-outline" size={32} color={theme.colors.textSecondary} />
             </View>
-          );
-        })}
+            <Text style={[styles.emptyTitle, { color: theme.colors.text }]}>
+              Direct Channel
+            </Text>
+            <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
+              {`This is a secure 1:1 communication channel with ${providerName} (${providerRole}). Send a message below to start.`}
+            </Text>
+          </View>
+        ) : (
+          <>
+            <Text style={[styles.dateDividerText, { color: theme.colors.textSecondary }]}>
+              {messages[0]?.created_at ? formatMessageDate(messages[0].created_at) : "Today"}
+            </Text>
+
+            {messages.map((item) => {
+              const isOperator =
+                item.sender_id === user?.id ||
+                item.sender_id === "operator_me" ||
+                item.sender_role === "operator" ||
+                item.sender_role === "user";
+
+              return (
+                <View
+                  key={item.id}
+                  style={[
+                    styles.messageRow,
+                    isOperator ? styles.rowOperator : styles.rowProvider,
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.bubble,
+                      isOperator
+                        ? [styles.bubbleOperator, { backgroundColor: "#0F5B6C" }]
+                        : [styles.bubbleProvider, { backgroundColor: "#1C1C1E" }],
+                    ]}
+                  >
+                    <Text style={styles.messageText}>{item.body}</Text>
+
+                    {item.attachment && (
+                      <View style={styles.attachmentBox}>
+                        <Ionicons name="document-attach-outline" size={16} color="#00A3C4" />
+                        <Text style={[styles.attachmentText, { color: theme.colors.text }]} numberOfLines={1}>
+                          {item.attachment.filename}
+                        </Text>
+                      </View>
+                    )}
+
+                    <View style={styles.bubbleFooter}>
+                      <Text style={[styles.bubbleTime, { color: theme.colors.textTertiary }]}>
+                        {formatMessageTime(item.created_at)}
+                      </Text>
+                      {isOperator && (
+                        <Ionicons
+                          name="checkmark"
+                          size={12}
+                          color="#00A3C4"
+                          style={{ marginLeft: 4 }}
+                        />
+                      )}
+                    </View>
+                  </View>
+                </View>
+              );
+            })}
+          </>
+        )}
       </ScrollView>
 
+      {/* Attachment Preview Chip */}
+      {attachedFile && (
+        <View style={[styles.attachedChipRow, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
+          <Ionicons name="document-attach" size={16} color={theme.colors.primary} />
+          <Text style={[styles.attachedChipText, { color: theme.colors.text }]} numberOfLines={1}>
+            {attachedFile.name}
+          </Text>
+          <Pressable onPress={() => setAttachedFile(null)} style={{ padding: 4 }}>
+            <Ionicons name="close-circle" size={18} color={theme.colors.textTertiary} />
+          </Pressable>
+        </View>
+      )}
+
       {/* Footer Text Input Bar */}
-      <View style={[styles.inputSection, { borderTopColor: theme.colors.cardBorder }]}>
-        <View style={[styles.inputRow, { backgroundColor: "#15161A", borderColor: theme.colors.cardBorder }]}>
-          <Pressable style={styles.clipBtn}>
-            <Ionicons name="attach-outline" size={24} color={theme.colors.textSecondary} />
-          </Pressable>
+      <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
+        <View style={[styles.inputSection, { borderTopColor: theme.colors.cardBorder }]}>
+          <View style={[styles.inputRow, { backgroundColor: "#15161A", borderColor: theme.colors.cardBorder }]}>
+            <Pressable onPress={handlePickAttachment} style={styles.clipBtn}>
+              <Ionicons
+                name={attachedFile ? "attach" : "attach-outline"}
+                size={24}
+                color={attachedFile ? theme.colors.primary : theme.colors.textSecondary}
+              />
+            </Pressable>
 
-          <TextInput
-            value={inputText}
-            onChangeText={setInputText}
-            placeholder={`Message ${providerName}`}
-            placeholderTextColor={theme.colors.textTertiary}
-            onSubmitEditing={handleSend}
-            style={[styles.textInput, { color: theme.colors.text }]}
-          />
+            <TextInput
+              value={inputText}
+              onChangeText={setInputText}
+              placeholder={`Message ${providerName}`}
+              placeholderTextColor={theme.colors.textTertiary}
+              onSubmitEditing={handleSend}
+              maxLength={2000}
+              style={[styles.textInput, { color: theme.colors.text }]}
+            />
 
-          <Pressable
-            onPress={handleSend}
-            style={[styles.sendBtn, { backgroundColor: theme.colors.primary }]}
-          >
-            <Ionicons name="send" size={16} color="#FFFFFF" />
-          </Pressable>
+            <Pressable
+              onPress={handleSend}
+              disabled={isSending || (!inputText.trim() && !attachedFile)}
+              style={[
+                styles.sendBtn,
+                {
+                  backgroundColor:
+                    inputText.trim() || attachedFile
+                      ? theme.colors.primary
+                      : "rgba(255,255,255,0.1)",
+                },
+              ]}
+            >
+              {isSending ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Ionicons name="send" size={16} color="#FFFFFF" />
+              )}
+            </Pressable>
+          </View>
+
+          <View style={styles.inputMetaRow}>
+            <Text style={[styles.metaText, { color: theme.colors.textTertiary }]}>
+              {`${inputText.length} / 2,000`}
+            </Text>
+            <Text style={[styles.metaText, { color: theme.colors.textTertiary }]}>
+              OPSEC scan on send · server re-validates
+            </Text>
+          </View>
         </View>
-
-        <View style={styles.inputMetaRow}>
-          <Text style={[styles.metaText, { color: theme.colors.textTertiary }]}>
-            {`${inputText.length} / 2,000`}
-          </Text>
-          <Text style={[styles.metaText, { color: theme.colors.textTertiary }]}>
-            OPSEC scan on send · server re-validates
-          </Text>
-        </View>
-      </View>
+      </KeyboardAvoidingView>
 
       {/* Audit Bottom Sheet */}
       <CustomBottomSheet
         visible={sheetVisible}
         onClose={() => setSheetVisible(false)}
         title="Audit & decisions"
-        subtitle="[TRACE] · AUDIT PREVIEW · 8 [OPEN] DECISIONS"
+        subtitle="[TRACE] · AUDIT PREVIEW"
         snapPoints={["85%"]}
         scrollable={true}
       >
         <View style={styles.sheetBody}>
-          {/* THREAD SOURCE */}
-          <Text style={[styles.auditSectionTitle, { color: theme.colors.textTertiary }]}>THREAD SOURCE</Text>
-          <View style={[styles.auditRow, { borderBottomColor: theme.colors.cardBorder }]}>
-            <Text style={[styles.auditLabel, { color: theme.colors.textSecondary }]}>source_type</Text>
-            <Text style={[styles.auditValue, { color: theme.colors.text }]}>provider_plan_link</Text>
-          </View>
-          <View style={[styles.auditRow, { borderBottomColor: theme.colors.cardBorder }]}>
-            <Text style={[styles.auditLabel, { color: theme.colors.textSecondary }]}>plan_link_id</Text>
-            <Text style={[styles.auditValue, { color: theme.colors.text }]}>{isLin ? "8B5C-3N1R-XOPZ" : "7G4A-2K9R-REYE"}</Text>
-          </View>
-          <View style={[styles.auditRow, { borderBottomColor: theme.colors.cardBorder }]}>
-            <Text style={[styles.auditLabel, { color: theme.colors.textSecondary }]}>question_id</Text>
-            <Text style={[styles.auditValue, { color: theme.colors.text }]}>{isLin ? "Q15" : "Q12"}</Text>
-          </View>
-          <View style={[styles.auditRow, { borderBottomColor: theme.colors.cardBorder }]}>
-            <Text style={[styles.auditLabel, { color: theme.colors.textSecondary }]}>readiness_driver</Text>
-            <Text style={[styles.auditValue, { color: theme.colors.text }]}>{isLin ? "Physical · D1" : "Sleep · D5"}</Text>
-          </View>
-          <View style={[styles.auditRow, { borderBottomColor: theme.colors.cardBorder }]}>
-            <Text style={[styles.auditLabel, { color: theme.colors.textSecondary }]}>route_level</Text>
-            <Text style={[styles.auditValue, { color: theme.colors.text }]}>L1</Text>
-          </View>
-          <View style={[styles.auditRow, { borderBottomColor: theme.colors.cardBorder, borderBottomWidth: 0 }]}>
-            <Text style={[styles.auditLabel, { color: theme.colors.textSecondary }]}>assigned_to</Text>
-            <Text style={[styles.auditValue, { color: theme.colors.text }]}>{isLin ? "capt.lin" : "tsgt.becker"}</Text>
-          </View>
+          {isTraceLoading ? (
+            <View style={{ paddingVertical: 30, alignItems: "center" }}>
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+              <Text style={{ color: theme.colors.textSecondary, marginTop: 10, fontSize: 12 }}>
+                Loading message trace...
+              </Text>
+            </View>
+          ) : (
+            <>
+              {/* THREAD SOURCE */}
+              <Text style={[styles.auditSectionTitle, { color: theme.colors.textTertiary }]}>THREAD SOURCE</Text>
+              <View style={[styles.auditRow, { borderBottomColor: theme.colors.cardBorder }]}>
+                <Text style={[styles.auditLabel, { color: theme.colors.textSecondary }]}>source_type</Text>
+                <Text style={[styles.auditValue, { color: theme.colors.text }]}>
+                  {traceData?.thread_source?.source_type || "user_initiated"}
+                </Text>
+              </View>
+              <View style={[styles.auditRow, { borderBottomColor: theme.colors.cardBorder }]}>
+                <Text style={[styles.auditLabel, { color: theme.colors.textSecondary }]}>plan_link_id</Text>
+                <Text style={[styles.auditValue, { color: theme.colors.text }]}>
+                  {traceData?.thread_source?.plan_link_id || "—"}
+                </Text>
+              </View>
+              <View style={[styles.auditRow, { borderBottomColor: theme.colors.cardBorder }]}>
+                <Text style={[styles.auditLabel, { color: theme.colors.textSecondary }]}>readiness_driver</Text>
+                <Text style={[styles.auditValue, { color: theme.colors.text }]}>
+                  {traceData?.thread_source?.readiness_driver || "—"}
+                </Text>
+              </View>
+              <View style={[styles.auditRow, { borderBottomColor: theme.colors.cardBorder }]}>
+                <Text style={[styles.auditLabel, { color: theme.colors.textSecondary }]}>route_level</Text>
+                <Text style={[styles.auditValue, { color: theme.colors.text }]}>
+                  {traceData?.thread_source?.route_level || "L1"}
+                </Text>
+              </View>
+              <View style={[styles.auditRow, { borderBottomColor: theme.colors.cardBorder, borderBottomWidth: 0 }]}>
+                <Text style={[styles.auditLabel, { color: theme.colors.textSecondary }]}>assigned_to</Text>
+                <Text style={[styles.auditValue, { color: theme.colors.text }]}>
+                  {traceData?.thread_source?.assigned_to || providerName}
+                </Text>
+              </View>
 
-          {/* LAST SEND · AUDIT ROW */}
-          <Text style={[styles.auditSectionTitle, { color: theme.colors.textTertiary, marginTop: 24 }]}>LAST SEND · AUDIT ROW</Text>
-          <View style={[styles.auditRow, { borderBottomColor: theme.colors.cardBorder }]}>
-            <Text style={[styles.auditLabel, { color: theme.colors.textSecondary }]}>message_id</Text>
-            <Text style={[styles.auditValue, { color: theme.colors.text }]}>MSG-2026-0142</Text>
-          </View>
-          <View style={[styles.auditRow, { borderBottomColor: theme.colors.cardBorder }]}>
-            <Text style={[styles.auditLabel, { color: theme.colors.textSecondary }]}>audit_event_id</Text>
-            <Text style={[styles.auditValue, { color: theme.colors.text }]}>MSG-AUD-0142</Text>
-          </View>
-          <View style={[styles.auditRow, { borderBottomColor: theme.colors.cardBorder }]}>
-            <Text style={[styles.auditLabel, { color: theme.colors.textSecondary }]}>audit_timestamp</Text>
-            <Text style={[styles.auditValue, { color: theme.colors.text }]}>2026-07-18 09:14 UTC</Text>
-          </View>
-          <View style={[styles.auditRow, { borderBottomColor: theme.colors.cardBorder }]}>
-            <Text style={[styles.auditLabel, { color: theme.colors.textSecondary }]}>attachment_count</Text>
-            <Text style={[styles.auditValue, { color: theme.colors.text }]}>0</Text>
-          </View>
-          <View style={[styles.auditRow, { borderBottomColor: theme.colors.cardBorder }]}>
-            <Text style={[styles.auditLabel, { color: theme.colors.textSecondary }]}>opsec_scan</Text>
-            <Text style={[styles.auditValue, { color: theme.colors.text }]}>passed (client + server)</Text>
-          </View>
-          <View style={[styles.auditRow, { borderBottomColor: theme.colors.cardBorder, borderBottomWidth: 0 }]}>
-            <Text style={[styles.auditLabel, { color: theme.colors.textSecondary }]}>role_scope</Text>
-            <Text style={[styles.auditValue, { color: theme.colors.text }]}>{isLin ? "operator · pt · (allowed)" : "operator · scs · (allowed)"}</Text>
-          </View>
+              {/* LAST SEND · AUDIT ROW */}
+              <Text style={[styles.auditSectionTitle, { color: theme.colors.textTertiary, marginTop: 24 }]}>LAST SEND · AUDIT ROW</Text>
+              <View style={[styles.auditRow, { borderBottomColor: theme.colors.cardBorder }]}>
+                <Text style={[styles.auditLabel, { color: theme.colors.textSecondary }]}>message_id</Text>
+                <Text style={[styles.auditValue, { color: theme.colors.text }]}>
+                  {traceData?.last_send_audit?.message_id || (messages[messages.length - 1]?.id ?? "—")}
+                </Text>
+              </View>
+              <View style={[styles.auditRow, { borderBottomColor: theme.colors.cardBorder }]}>
+                <Text style={[styles.auditLabel, { color: theme.colors.textSecondary }]}>audit_event_id</Text>
+                <Text style={[styles.auditValue, { color: theme.colors.text }]}>
+                  {traceData?.last_send_audit?.audit_event_id || "—"}
+                </Text>
+              </View>
+              <View style={[styles.auditRow, { borderBottomColor: theme.colors.cardBorder }]}>
+                <Text style={[styles.auditLabel, { color: theme.colors.textSecondary }]}>audit_timestamp</Text>
+                <Text style={[styles.auditValue, { color: theme.colors.text }]}>
+                  {traceData?.last_send_audit?.audit_timestamp || "—"}
+                </Text>
+              </View>
+              <View style={[styles.auditRow, { borderBottomColor: theme.colors.cardBorder }]}>
+                <Text style={[styles.auditLabel, { color: theme.colors.textSecondary }]}>attachment_count</Text>
+                <Text style={[styles.auditValue, { color: theme.colors.text }]}>
+                  {traceData?.last_send_audit?.attachment_count ?? (messages[messages.length - 1]?.attachment ? 1 : 0)}
+                </Text>
+              </View>
+              <View style={[styles.auditRow, { borderBottomColor: theme.colors.cardBorder }]}>
+                <Text style={[styles.auditLabel, { color: theme.colors.textSecondary }]}>opsec_scan</Text>
+                <Text style={[styles.auditValue, { color: theme.colors.text }]}>
+                  {traceData?.last_send_audit?.opsec_scan || "passed (server)"}
+                </Text>
+              </View>
+              <View style={[styles.auditRow, { borderBottomColor: theme.colors.cardBorder, borderBottomWidth: 0 }]}>
+                <Text style={[styles.auditLabel, { color: theme.colors.textSecondary }]}>role_scope</Text>
+                <Text style={[styles.auditValue, { color: theme.colors.text }]}>
+                  {traceData?.last_send_audit?.role_scope || "operator · (allowed)"}
+                </Text>
+              </View>
+            </>
+          )}
 
-          {/* OPEN MESSAGING BEHAVIORS */}
-          <Text style={[styles.auditSectionTitle, { color: theme.colors.textTertiary, marginTop: 24 }]}>[OPEN] MESSAGING BEHAVIORS</Text>
+          {/* MESSAGING BEHAVIORS */}
+          <Text style={[styles.auditSectionTitle, { color: theme.colors.textTertiary, marginTop: 24 }]}>MESSAGING BEHAVIORS</Text>
           <View style={styles.behaviorList}>
             {[
-              "Transport · WebSocket vs polling",
-              "Push notifications · APNs/FCM",
-              "Read receipts",
-              "Typing indicators",
-              "Group threads vs 1:1",
-              "Attachment types (PDF + image only in v1)",
-              "Retention window",
-              "Crisis-keyword vs L5"
+              { label: "Transport · WebSocket live change stream", status: "Live" },
+              { label: "Attachments · PDF and image support (≤20MB)", status: "Active" },
+              { label: "OPSEC scan · Real-time and server-side barrier", status: "Active" },
+              { label: "Push notifications · APNs/FCM", status: "[Open] v1.1" },
+              { label: "Read receipts & typing indicators", status: "[Open] v1.1" },
             ].map((behavior, bIdx) => (
               <View key={bIdx} style={styles.behaviorRow}>
-                <View style={styles.openBadge}>
-                  <Text style={styles.openBadgeText}>[Open]</Text>
+                <View
+                  style={[
+                    styles.openBadge,
+                    {
+                      borderColor: behavior.status === "Active" || behavior.status === "Live" ? "#10B981" : "#D97706",
+                      backgroundColor: behavior.status === "Active" || behavior.status === "Live" ? "rgba(16,185,129,0.1)" : "transparent",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.openBadgeText,
+                      { color: behavior.status === "Active" || behavior.status === "Live" ? "#10B981" : "#D97706" },
+                    ]}
+                  >
+                    {behavior.status}
+                  </Text>
                 </View>
-                <Text style={[styles.behaviorText, { color: theme.colors.text }]}>{behavior}</Text>
+                <Text style={[styles.behaviorText, { color: theme.colors.text }]}>{behavior.label}</Text>
               </View>
             ))}
           </View>
@@ -446,8 +738,9 @@ const styles = StyleSheet.create({
     right: -4,
     backgroundColor: "#D97706",
     borderRadius: 8,
-    width: 16,
+    paddingHorizontal: 4,
     height: 16,
+    minWidth: 16,
     alignItems: "center",
     justifyContent: "center",
   },
@@ -472,6 +765,25 @@ const styles = StyleSheet.create({
   messagesList: {
     padding: 16,
     paddingBottom: 24,
+    flexGrow: 1,
+  },
+  emptyIconCircle: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 6,
+  },
+  emptySubtitle: {
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 18,
   },
   dateDividerText: {
     fontSize: 11,
@@ -507,6 +819,20 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 19,
   },
+  attachmentBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(0,0,0,0.2)",
+    padding: 8,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  attachmentText: {
+    fontSize: 12,
+    fontWeight: "600",
+    flex: 1,
+  },
   bubbleFooter: {
     flexDirection: "row",
     justifyContent: "flex-end",
@@ -515,6 +841,19 @@ const styles = StyleSheet.create({
   },
   bubbleTime: {
     fontSize: 10,
+  },
+  attachedChipRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderTopWidth: 1,
+    gap: 8,
+  },
+  attachedChipText: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "600",
   },
   inputSection: {
     paddingHorizontal: 16,
@@ -591,15 +930,13 @@ const styles = StyleSheet.create({
   },
   openBadge: {
     borderWidth: 1,
-    borderColor: "#D97706",
     borderRadius: 4,
     paddingHorizontal: 5,
     paddingVertical: 2,
     marginRight: 10,
   },
   openBadgeText: {
-    color: "#D97706",
-    fontSize: 8,
+    fontSize: 9,
     fontWeight: "800",
   },
   behaviorText: {

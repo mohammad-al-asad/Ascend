@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Alert } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Alert, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../../utils/useTheme";
 import { CustomHeader } from "../../../components/ui/CustomHeader";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useCreateSupportRequestMutation } from "../../../redux/api/supportApi";
 
 interface TopicOption {
   id: string;
@@ -20,7 +21,7 @@ const TOPIC_OPTIONS: TopicOption[] = [
     icon: "pulse-outline",
     iconColor: "#00A3C4",
     label: "Fitness",
-    desc: "Plan, training, OFT. → PT/IM",
+    desc: "Plan, training, OFT. → Strength & Conditioning (SCS)",
   },
   {
     id: "injury",
@@ -52,24 +53,71 @@ const TOPIC_OPTIONS: TopicOption[] = [
   },
 ];
 
+const TOPIC_PATHWAY_MAP: Record<string, string> = {
+  fitness: "SCS",
+  injury: "PT/IM",
+  nutrition: "Nutritionist",
+  mental: "Mental Performance",
+  purpose: "Chaplain",
+};
+
 export default function RequestSupportScreen() {
   const theme = useTheme();
   const router = useRouter();
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [contextText, setContextText] = useState("");
 
-  const handleContinue = () => {
+  const [createSupportRequest, { isLoading: isSubmitting }] = useCreateSupportRequestMutation();
+
+  const handleContinue = async () => {
     if (!selectedTopic) {
       Alert.alert("Select a Topic", "Please select a topic before continuing.");
       return;
     }
-    Alert.alert(
-      "Request Sent",
-      `Your support request for ${
-        TOPIC_OPTIONS.find((t) => t.id === selectedTopic)?.label
-      } has been submitted.`
-    );
-    router.back();
+
+    const pathwayKey = TOPIC_PATHWAY_MAP[selectedTopic] || selectedTopic;
+    const trimmedMessage = contextText.trim();
+
+    try {
+      const response = await createSupportRequest({
+        pathway_key: pathwayKey,
+        message: trimmedMessage || undefined,
+        context: trimmedMessage || undefined,
+      }).unwrap();
+
+      if (response?.priority_flag && response?.safety_notice) {
+        Alert.alert(
+          "Important Safety Notice",
+          `${response.safety_notice}\n\nYour request has also been forwarded to your specialist team.`,
+          [{ text: "Understood", onPress: () => router.back() }]
+        );
+      } else {
+        const topicLabel = TOPIC_OPTIONS.find((t) => t.id === selectedTopic)?.label || pathwayKey;
+        Alert.alert(
+          "Request Submitted",
+          `Your support request for ${topicLabel} has been submitted to your assigned specialist.`,
+          [{ text: "OK", onPress: () => router.back() }]
+        );
+      }
+    } catch (err: any) {
+      const errorData = err?.data;
+      let errorMsg = "Failed to submit support request. Please try again.";
+
+      if (errorData?.detail?.message) {
+        errorMsg = errorData.detail.message;
+        if (Array.isArray(errorData.detail.blocked_terms) && errorData.detail.blocked_terms.length > 0) {
+          errorMsg += `\n\nBlocked terms: ${errorData.detail.blocked_terms.join(", ")}`;
+        }
+      } else if (typeof errorData?.detail === "string") {
+        errorMsg = errorData.detail;
+      } else if (typeof errorData?.message === "string") {
+        errorMsg = errorData.message;
+      } else if (err?.message) {
+        errorMsg = err.message;
+      }
+
+      Alert.alert("Submission Error", errorMsg);
+    }
   };
 
   return (
@@ -193,10 +241,20 @@ export default function RequestSupportScreen() {
         {/* Continue CTA Button */}
         <Pressable
           onPress={handleContinue}
-          style={[styles.continueBtn, { backgroundColor: theme.colors.primary }]}
+          disabled={isSubmitting}
+          style={[
+            styles.continueBtn,
+            { backgroundColor: isSubmitting ? theme.colors.cardBorder : theme.colors.primary },
+          ]}
         >
-          <Text style={styles.continueBtnText}>Continue</Text>
-          <Ionicons name="arrow-forward" size={16} color="#FFFFFF" style={{ marginLeft: 6 }} />
+          {isSubmitting ? (
+            <ActivityIndicator size="small" color="#FFFFFF" />
+          ) : (
+            <>
+              <Text style={styles.continueBtnText}>Submit request</Text>
+              <Ionicons name="arrow-forward" size={16} color="#FFFFFF" style={{ marginLeft: 6 }} />
+            </>
+          )}
         </Pressable>
 
         {/* Confidentiality notice footer */}

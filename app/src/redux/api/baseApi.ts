@@ -14,7 +14,11 @@ const baseQuery = fetchBaseQuery({
       console.log("Authenticated request: access token attached");
       headers.set("Authorization", `Bearer ${token}`);
     }
-    headers.set("Content-Type", "application/json");
+    if (headers.get("Content-Type") === "multipart/form-data" || headers.get("Content-Type") === "NONE") {
+      headers.delete("Content-Type");
+    } else if (!headers.has("Content-Type")) {
+      headers.set("Content-Type", "application/json");
+    }
     headers.set("ngrok-skip-browser-warning", "true");
     return headers;
   },
@@ -86,6 +90,6 @@ const baseQueryWithReauth: BaseQueryFn<
 export const baseApi = createApi({
   reducerPath: "baseApi",
   baseQuery: baseQueryWithReauth,
-  tagTypes: ["Profile", "Checkin", "Dashboard", "Onboarding", "Notifications"],
+  tagTypes: ["Profile", "Checkin", "Dashboard", "Onboarding", "Notifications", "Support", "Messaging"],
   endpoints: () => ({}),
 });

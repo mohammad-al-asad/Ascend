@@ -1,1 +1,0 @@
-"""Ascend backend application package."""

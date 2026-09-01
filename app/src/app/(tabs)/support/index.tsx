@@ -1,5 +1,14 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  ActivityIndicator,
+  RefreshControl,
+  Alert,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useTheme } from "../../../utils/useTheme";
@@ -7,15 +16,69 @@ import { CustomHeader } from "../../../components/ui/CustomHeader";
 import { CustomButton } from "../../../components/ui/CustomButton";
 import { CustomSwitch } from "../../../components/ui/CustomSwitch";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useAppSelector } from "../../../redux/store";
+import {
+  useGetMyTeamQuery,
+  useTogglePathwayMutation,
+  SupportPathway,
+} from "../../../redux/api/supportApi";
 
 export default function SupportScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const user = useAppSelector((state) => state.auth.user);
 
-  // Pathway toggle states
-  const [nutritionEnabled, setNutritionEnabled] = useState(true);
-  const [mentalEnabled, setMentalEnabled] = useState(false);
-  const [spiritualEnabled, setSpiritualEnabled] = useState(false);
+  // Local optimistic state overrides for instant UI updates
+  const [optimisticOverrides, setOptimisticOverrides] = useState<Record<string, boolean>>({});
+
+  // RTK Query: fetch team pathways and toggle mutation
+  const { data: serverPathways, isLoading, isFetching, refetch } = useGetMyTeamQuery();
+  const [togglePathway] = useTogglePathwayMutation();
+
+  const pathways = serverPathways || [];
+
+  const handleToggle = async (pathway: SupportPathway, nextVal: boolean) => {
+    if (pathway.always_available) return;
+
+    // Immediately update UI optimistically
+    setOptimisticOverrides((prev) => ({ ...prev, [pathway.pathway_key]: nextVal }));
+
+    try {
+      await togglePathway({ pathway_key: pathway.pathway_key, enabled: nextVal }).unwrap();
+    } catch (err: any) {
+      // Revert optimistic update on failure
+      setOptimisticOverrides((prev) => ({ ...prev, [pathway.pathway_key]: !nextVal }));
+      const errMsg = err?.data?.detail?.message || err?.data?.detail || "Failed to update pathway status.";
+      Alert.alert("Pathway Update Error", String(errMsg));
+    }
+  };
+
+  const getAvatarText = (key: string) => {
+    switch (key) {
+      case "SCS":
+        return "SCS";
+      case "PT-IM":
+      case "PT":
+        return "PT";
+      case "Nutritionist":
+      case "Nutrition":
+        return "N";
+      case "Mental Performance":
+      case "Mental":
+        return "B";
+      case "Chaplain":
+      case "Purpose":
+        return "C";
+      default:
+        return key.slice(0, 2).toUpperCase();
+    }
+  };
+
+  const getChatParam = (key: string) => {
+    if (key === "PT-IM" || key === "PT") return "lin";
+    if (key === "SCS") return "becker";
+    return key;
+  };
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
@@ -35,7 +98,10 @@ export default function SupportScreen() {
         }
       />
 
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={theme.colors.primary} />}
+      >
         {/* Title and metadata tag */}
         <View style={styles.titleContainer}>
           <Text style={[styles.sectionTag, { color: theme.colors.textSecondary }]}>
@@ -72,196 +138,145 @@ export default function SupportScreen() {
         </View>
 
         {/* Assigned Providers Header */}
-        <Text style={[styles.assignedHeader, { color: theme.colors.textSecondary }]}>ASSIGNED PROVIDERS</Text>
-
-        {/* Provider 1: Strength & Conditioning */}
-        <View style={[styles.providerCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
-          <View style={styles.providerRow}>
-            <View style={[styles.avatar, { backgroundColor: "#27272A" }]}>
-              <Text style={[styles.avatarText, { color: theme.colors.text }]}>SCS</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <View style={styles.providerTitleRow}>
-                <Text style={[styles.providerRole, { color: theme.colors.text }]}>
-                  Strength & Conditioning Specialist
-                </Text>
-                <View style={[styles.statusBadge, { backgroundColor: "rgba(217,119,6,0.1)" }]}>
-                  <Text style={[styles.statusBadgeText, { color: "#D97706" }]}>● Locked on</Text>
-                </View>
-              </View>
-              <Text style={[styles.providerName, { color: theme.colors.textSecondary }]}>
-                tsgt. becker · 10 MDG · USR-9821
-              </Text>
-            </View>
-          </View>
-          <Text style={[styles.providerDesc, { color: theme.colors.textSecondary }]}>
-            Builds and adjusts your daily training plan, monitors recovery, and runs OFT-aligned conditioning.
-          </Text>
-          <CustomButton
-            label="Send a message"
-            onPress={() => router.push("/support/chat?provider=becker" as any)}
-            style={{ marginTop: 12 }}
-          />
+        <View style={styles.assignedHeaderRow}>
+          <Text style={[styles.assignedHeader, { color: theme.colors.textSecondary }]}>ASSIGNED PROVIDERS</Text>
+          {isFetching && <ActivityIndicator size="small" color={theme.colors.primary} />}
         </View>
 
-        {/* Provider 2: Physical Therapy */}
-        <View style={[styles.providerCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
-          <View style={styles.providerRow}>
-            <View style={[styles.avatar, { backgroundColor: "#27272A" }]}>
-              <Text style={[styles.avatarText, { color: theme.colors.text }]}>PT</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <View style={styles.providerTitleRow}>
-                <Text style={[styles.providerRole, { color: theme.colors.text }]}>
-                  Physical Therapy / Injury Management
-                </Text>
-                <View style={[styles.statusBadge, { backgroundColor: "rgba(217,119,6,0.1)" }]}>
-                  <Text style={[styles.statusBadgeText, { color: "#D97706" }]}>● Locked on</Text>
-                </View>
-              </View>
-              <Text style={[styles.providerName, { color: theme.colors.textSecondary }]}>
-                capt. lin · 21 MDS · USR-7101
-              </Text>
-            </View>
+        {/* Dynamic Provider Cards */}
+        {isLoading && pathways.length === 0 ? (
+          <View style={{ paddingVertical: 40, alignItems: "center" }}>
+            <ActivityIndicator size="small" color={theme.colors.primary} />
+            <Text style={[styles.descText, { color: theme.colors.textSecondary, marginTop: 12 }]}>
+              Loading team pathways...
+            </Text>
           </View>
-          <Text style={[styles.providerDesc, { color: theme.colors.textSecondary }]}>
-            Injury screening, reconditioning plans, and post-injury return-to-duty clearance.
-          </Text>
-          <CustomButton
-            label="Send a message"
-            onPress={() => router.push("/support/chat?provider=lin" as any)}
-            style={{ marginTop: 12 }}
-          />
-        </View>
+        ) : pathways.length === 0 ? (
+          <View style={{ paddingVertical: 20, alignItems: "center" }}>
+            <Text style={[styles.descText, { color: theme.colors.textSecondary }]}>
+              No assigned providers found.
+            </Text>
+          </View>
+        ) : (
+          pathways.map((pathway) => {
+            const isLocked = pathway.always_available || pathway.status === "locked_on";
+            const isOverridePresent = optimisticOverrides[pathway.pathway_key] !== undefined;
+            const isEnabled = isOverridePresent
+              ? optimisticOverrides[pathway.pathway_key]
+              : pathway.status === "enabled";
+            const avatarCode = getAvatarText(pathway.pathway_key);
 
-        {/* Provider 3: Performance Nutrition */}
-        <View style={[styles.providerCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
-          <View style={styles.providerRow}>
-            <View style={[styles.avatar, { backgroundColor: "#27272A" }]}>
-              <Text style={[styles.avatarText, { color: theme.colors.text }]}>N</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <View style={styles.providerTitleRow}>
-                <Text style={[styles.providerRole, { color: theme.colors.text }]}>
-                  Performance Nutrition
-                </Text>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    { backgroundColor: nutritionEnabled ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)" },
-                  ]}
-                >
-                  <Text style={[styles.statusBadgeText, { color: nutritionEnabled ? "#10B981" : "#EF4444" }]}>
-                    {nutritionEnabled ? "Enabled" : "Disabled"}
-                  </Text>
-                </View>
-              </View>
-              <Text style={[styles.providerName, { color: theme.colors.textSecondary }]}>
-                ms. delaney · 10 MDG · USR-7301
-              </Text>
-            </View>
-          </View>
-          <Text style={[styles.providerDesc, { color: theme.colors.textSecondary }]}>
-            Fueling strategies, hydration, and meal-planning tied to training load.
-          </Text>
-          <CustomSwitch
-            label="Pathway enabled"
-            value={nutritionEnabled}
-            onValueChange={setNutritionEnabled}
-          />
-          <CustomButton
-            label="Send a message (Open in v1.1)"
-            onPress={() => {}}
-            disabled={true}
-            style={{ marginTop: 12 }}
-          />
-        </View>
+            const badgeBg = isLocked
+              ? "rgba(217,119,6,0.1)"
+              : isEnabled
+                ? "rgba(16,185,129,0.1)"
+                : "rgba(239,68,68,0.1)";
 
-        {/* Provider 4: Mental Performance */}
-        <View style={[styles.providerCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
-          <View style={styles.providerRow}>
-            <View style={[styles.avatar, { backgroundColor: "#27272A" }]}>
-              <Text style={[styles.avatarText, { color: theme.colors.text }]}>B</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <View style={styles.providerTitleRow}>
-                <Text style={[styles.providerRole, { color: theme.colors.text }]}>
-                  Mental Performance - Behavioral
-                </Text>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    { backgroundColor: mentalEnabled ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)" },
-                  ]}
-                >
-                  <Text style={[styles.statusBadgeText, { color: mentalEnabled ? "#10B981" : "#EF4444" }]}>
-                    {mentalEnabled ? "Enabled" : "Disabled"}
-                  </Text>
-                </View>
-              </View>
-              <Text style={[styles.providerName, { color: theme.colors.textSecondary }]}>
-                dr. fields · 10 MDG · USR-7401
-              </Text>
-            </View>
-          </View>
-          <Text style={[styles.providerDesc, { color: theme.colors.textSecondary }]}>
-            Stress management, performance anxiety, and mental skills for high-tempo ops.
-          </Text>
-          <CustomSwitch
-            label="Pathway enabled"
-            value={mentalEnabled}
-            onValueChange={setMentalEnabled}
-          />
-          <CustomButton
-            label="Send a message (Open in v1.1)"
-            onPress={() => {}}
-            disabled={true}
-            style={{ marginTop: 12 }}
-          />
-        </View>
+            const badgeTextColor = isLocked ? "#D97706" : isEnabled ? "#10B981" : "#EF4444";
+            const badgeText = isLocked ? "● Locked on" : isEnabled ? "Enabled" : "Disabled";
 
-        {/* Provider 5: Purpose / Spiritual */}
-        <View style={[styles.providerCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
-          <View style={styles.providerRow}>
-            <View style={[styles.avatar, { backgroundColor: "#27272A" }]}>
-              <Text style={[styles.avatarText, { color: theme.colors.text }]}>C</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <View style={styles.providerTitleRow}>
-                <Text style={[styles.providerRole, { color: theme.colors.text }]}>
-                  Purpose / Spiritual - Chaplain
-                </Text>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    { backgroundColor: spiritualEnabled ? "rgba(16,185,129,0.1)" : "rgba(239,68,68,0.1)" },
-                  ]}
-                >
-                  <Text style={[styles.statusBadgeText, { color: spiritualEnabled ? "#10B981" : "#EF4444" }]}>
-                    {spiritualEnabled ? "Enabled" : "Disabled"}
-                  </Text>
+            return (
+              <View
+                key={pathway.pathway_key}
+                style={[
+                  styles.providerCard,
+                  { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder },
+                ]}
+              >
+                <View style={styles.providerRow}>
+                  <View style={[styles.avatar, { backgroundColor: "#27272A" }]}>
+                    <Text style={[styles.avatarText, { color: theme.colors.text }]}>{avatarCode}</Text>
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.providerTitleRow}>
+                      <Text style={[styles.providerRole, { color: theme.colors.text }]}>
+                        {pathway.role_title || pathway.label}
+                      </Text>
+                      <View style={[styles.statusBadge, { backgroundColor: badgeBg }]}>
+                        <Text style={[styles.statusBadgeText, { color: badgeTextColor }]}>{badgeText}</Text>
+                      </View>
+                    </View>
+                    <Text style={[styles.providerName, { color: theme.colors.textSecondary }]}>
+                      {pathway.provider?.name || "Not yet assigned"}
+                    </Text>
+                  </View>
                 </View>
+
+                <Text style={[styles.providerDesc, { color: theme.colors.textSecondary }]}>
+                  {pathway.description}
+                </Text>
+
+                {/* Active Assigned Action */}
+                {pathway.assigned_action && (
+                  <View
+                    style={[
+                      styles.actionBadgeBox,
+                      { backgroundColor: "rgba(0,163,196,0.08)", borderColor: "rgba(0,163,196,0.2)" },
+                    ]}
+                  >
+                    <Ionicons name="clipboard-outline" size={14} color={theme.colors.primary} />
+                    <Text style={[styles.actionBadgeText, { color: theme.colors.text }]}>
+                      {pathway.assigned_action.title}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Follow-up Status */}
+                {pathway.follow_up_status && (
+                  <View
+                    style={[
+                      styles.followUpBadgeBox,
+                      { backgroundColor: "rgba(217,119,6,0.08)", borderColor: "rgba(217,119,6,0.2)" },
+                    ]}
+                  >
+                    <Ionicons name="time-outline" size={14} color="#D97706" />
+                    <Text style={[styles.followUpBadgeText, { color: "#D97706" }]}>
+                      Request {pathway.follow_up_status.status}
+                    </Text>
+                  </View>
+                )}
+
+                {/* Optional Pathway Toggle */}
+                {!pathway.always_available && (
+                  <View style={styles.switchWrapper}>
+                    <CustomSwitch
+                      label="Pathway enabled"
+                      value={isEnabled}
+                      onValueChange={(val) => handleToggle(pathway, val)}
+                    />
+                  </View>
+                )}
+
+                {/* Action Button */}
+                <CustomButton
+                  label={
+                    pathway.messaging_available
+                      ? "Send a message"
+                      : isEnabled
+                        ? "Send a message (Open in v1.1)"
+                        : "Enable pathway to message"
+                  }
+                  onPress={() => {
+                    if (pathway.messaging_available) {
+                      router.push({
+                        pathname: "/support/chat",
+                        params: {
+                          other_user_id: pathway.provider?.user_id || "",
+                          provider: getChatParam(pathway.pathway_key),
+                          provider_name: pathway.provider?.name || "",
+                          role_title: pathway.role_title || pathway.label,
+                          pathway_key: pathway.pathway_key,
+                        },
+                      } as any);
+                    }
+                  }}
+                  disabled={!pathway.messaging_available}
+                  style={{ marginTop: 12 }}
+                />
               </View>
-              <Text style={[styles.providerName, { color: theme.colors.textSecondary }]}>
-                ch. taylor · 10 MDG · USR-7501
-              </Text>
-            </View>
-          </View>
-          <Text style={[styles.providerDesc, { color: theme.colors.textSecondary }]}>
-            Confidential conversations about purpose, meaning, and values - no record retention beyond minimum required.
-          </Text>
-          <CustomSwitch
-            label="Pathway enabled"
-            value={spiritualEnabled}
-            onValueChange={setSpiritualEnabled}
-          />
-          <CustomButton
-            label="Send a message (Open in v1.1)"
-            onPress={() => {}}
-            disabled={true}
-            style={{ marginTop: 12 }}
-          />
-        </View>
+            );
+          })
+        )}
 
         {/* Communication preference */}
         <View style={styles.prefSection}>
@@ -287,9 +302,15 @@ export default function SupportScreen() {
 
         {/* Footer */}
         <View style={styles.footerContainer}>
-          <Text style={[styles.footerText, { color: theme.colors.textTertiary }]}>Performing user capt.lin · USR-6601</Text>
-          <Text style={[styles.footerText, { color: theme.colors.textTertiary }]}>Policy version ascend-ia-04@1.4.0</Text>
-          <Text style={[styles.footerText, { color: theme.colors.textTertiary }]}>Trace SUPPORT-7C1A</Text>
+          <Text style={[styles.footerText, { color: theme.colors.textTertiary }]}>
+            Performing user {user?.full_name || "Operator"} · {user?.id || user?.email || ""}
+          </Text>
+          <Text style={[styles.footerText, { color: theme.colors.textTertiary }]}>
+            Policy version ascend-ia-04@1.4.0
+          </Text>
+          <Text style={[styles.footerText, { color: theme.colors.textTertiary }]}>
+            Trace SUPPORT-7C1A
+          </Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -390,11 +411,16 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
   },
+  assignedHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
   assignedHeader: {
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.5,
-    marginBottom: 16,
   },
   providerCard: {
     borderWidth: 1,
@@ -448,28 +474,39 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
   },
-  toggleRow: {
+  actionBadgeBox: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: "#27272A",
-    paddingTop: 16,
-  },
-  fadedButton: {
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
     borderWidth: 1,
-    borderRadius: 8,
-    height: 40,
-    paddingHorizontal: 16,
-    justifyContent: "center",
-    backgroundColor: "rgba(255,255,255,0.02)",
-    flex: 1,
-    marginRight: 16,
+    marginTop: 10,
   },
-  fadedButtonText: {
+  actionBadgeText: {
     fontSize: 12,
     fontWeight: "600",
+  },
+  followUpBadgeBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    marginTop: 8,
+  },
+  followUpBadgeText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  switchWrapper: {
+    marginTop: 12,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.06)",
   },
   prefSection: {
     marginTop: 24,

@@ -70,7 +70,7 @@ export default function CheckinGatewayScreen() {
     isWeeklyCheckinAvailable(weekly_cadence_start_date || rawWeeklyGate?.cadence_start_date || null, last_weekly_submission);
   const weeklyAvailable = rawWeeklyGate ? isServerWeeklyOpen : isLocalWeeklyAvailable;
 
-  const isServerMonthlyOpen = rawMonthlyData?.already_completed_this_period === false && daysUntilMonthly === 0;
+  const isServerMonthlyOpen = rawMonthlyData ? rawMonthlyData.already_completed_this_period === false : false;
   const isLocalMonthlyAvailable =
     (day0_daily_checkin_status === "completed" || dailyData?.already_completed_today) &&
     isMonthlyCheckinAvailable(monthly_cadence_start_date, last_monthly_submission);
@@ -164,10 +164,10 @@ export default function CheckinGatewayScreen() {
         {renderCheckinCard(
           "Daily check-in",
           "6 quick readiness questions tracking physical, sleep, recovery, mental, and limitation drivers.",
-          Boolean(dailyAvailable && !weeklyAvailable && !monthlyAvailable),
+          Boolean(dailyAvailable && !weeklyAvailable),
           dailyAvailable ? "Weekly check-in takes priority today" : "Already submitted today",
           () => router.push("/checkin/daily" as any),
-          Boolean(dailyAvailable && !weeklyAvailable && !monthlyAvailable)
+          Boolean(dailyAvailable && !weeklyAvailable)
         )}
 
         {/* Weekly Check-in */}
@@ -189,13 +189,17 @@ export default function CheckinGatewayScreen() {
           "Monthly check-in",
           "Comprehensive monthly wellness review, goal alignment, and longitudinal review.",
           Boolean(monthlyAvailable),
-          formattedMonthlyEndDate
-            ? `Opens on ${formattedMonthlyEndDate}`
-            : daysUntilMonthly > 0
-              ? `Opens in ${daysUntilMonthly} days`
-              : day0_daily_checkin_status === "completed" || dailyData?.already_completed_today
-                ? "Already submitted this period"
-                : "Requires baseline completion",
+          rawMonthlyData?.already_completed_this_period
+            ? formattedMonthlyEndDate
+              ? `Next cycle opens on ${formattedMonthlyEndDate}`
+              : "Already submitted this period"
+            : formattedMonthlyEndDate
+              ? `Opens on ${formattedMonthlyEndDate}`
+              : daysUntilMonthly > 0
+                ? `Opens in ${daysUntilMonthly} days`
+                : day0_daily_checkin_status === "completed" || dailyData?.already_completed_today
+                  ? "Already submitted this period"
+                  : "Requires baseline completion",
           () => router.push("/checkin/monthly" as any),
           Boolean(monthlyAvailable)
         )}
