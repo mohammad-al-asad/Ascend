@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,8 +6,8 @@ import {
   ScrollView,
   Pressable,
   TextInput as RNTextInput,
-  Platform,
   Image,
+  ActivityIndicator,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -17,41 +17,21 @@ import {
   saveOnboardingFollowUp,
   updateUser,
 } from "../../redux/slices/authSlice";
+import { saveUser } from "../../utils/authStorage";
 import { useTheme } from "../../utils/useTheme";
 import { CustomHeader } from "../../components/ui/CustomHeader";
 import { CustomSwitch } from "../../components/ui/CustomSwitch";
 import { CustomButton } from "../../components/ui/CustomButton";
 import { CustomBottomSheet } from "../../components/ui/CustomBottomSheet";
-import questionsData from "./questions.json";
 import { SafeAreaView } from "react-native-safe-area-context";
-
-// Define TypeScript interfaces for question data
-interface FollowUpOption {
-  label: string;
-  description: string;
-  disabled?: boolean;
-  value?: boolean;
-}
-
-interface FollowUpConfig {
-  type: "severity-sheet" | "toggle-sheet" | "role-sheet" | "text-sheet";
-  title: string;
-  triggerOptions: string[];
-  options?: FollowUpOption[];
-  placeholder?: string;
-  maxLength?: number;
-}
-
-interface Question {
-  id: number;
-  category: string;
-  question: string;
-  description: string;
-  options: string[];
-  routingText?: string;
-  routingTrigger?: string[];
-  followUp?: FollowUpConfig;
-}
+import {
+  useGetOnboardingIntroQuery,
+  useSubmitOnboardingConsentMutation,
+  useGetOnboardingQuestionsQuery,
+  useSubmitOnboardingAnswerMutation,
+  useCompleteOnboardingBaselineMutation,
+  OnboardingQuestion,
+} from "../../redux/api/checkinApi";
 
 export default function OnboardingScreen() {
   const theme = useTheme();
@@ -62,6 +42,23 @@ export default function OnboardingScreen() {
   const user = useAppSelector((state) => state.auth.user);
   const answers = useAppSelector((state) => state.auth.onboardingAnswers);
   const followUps = useAppSelector((state) => state.auth.onboardingFollowUps);
+
+  // RTK Query Hooks
+  const { data: introData, isLoading: isIntroLoading } = useGetOnboardingIntroQuery();
+  const { data: serverQuestions, isLoading: isQuestionsLoading } = useGetOnboardingQuestionsQuery();
+  const [submitConsent, { isLoading: isConsentSubmitting }] = useSubmitOnboardingConsentMutation();
+  const [submitAnswer, { isLoading: isAnswerSubmitting }] = useSubmitOnboardingAnswerMutation();
+  const [completeBaseline, { isLoading: isBaselineSubmitting }] = useCompleteOnboardingBaselineMutation();
+
+  // Questions array strictly from backend API
+  const questions: OnboardingQuestion[] =
+    Array.isArray(serverQuestions)
+      ? serverQuestions
+      : (serverQuestions as any)?.questions && Array.isArray((serverQuestions as any).questions)
+        ? (serverQuestions as any).questions
+        : (serverQuestions as any)?.data && Array.isArray((serverQuestions as any).data)
+          ? (serverQuestions as any).data
+          : [];
 
   // Flow steps:
   // Step 0: Welcome Screen
@@ -74,9 +71,16 @@ export default function OnboardingScreen() {
   const [dataConsent, setDataConsent] = useState(false);
   const [wellnessOptIn, setWellnessOptIn] = useState(false);
 
+  // Baseline result storage
+  const [baselineResult, setBaselineResult] = useState<{
+    opsScore: number;
+    opsBand: string;
+    componentScores: Record<string, number>;
+  } | null>(null);
+
   // Main Question Step (Step 2..21) States
-  const questionIndex = currentStep - 2;
-  const currentQuestion = (questionsData as Question[])[questionIndex];
+  const questionIndex = Math.max(0, Math.min(Math.max(0, questions.length - 1), currentStep - 2));
+  const currentQuestion: OnboardingQuestion | undefined = questions[questionIndex];
 
   // Local answer tracking
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
@@ -86,46 +90,214 @@ export default function OnboardingScreen() {
   const [tempFollowUpOption, setTempFollowUpOption] = useState<string | null>(null);
   const [tempTextValue, setTempTextValue] = useState("");
 
-  // Role toggles for role-sheet follow-up (Question 18)
-  const [roleToggles, setRoleToggles] = useState({
+  // Role toggles for role-sheet follow-up
+  const [roleToggles, setRoleToggles] = useState<Record<string, boolean>>({
     Nutritionist: false,
     MentalPerformance: false,
     Chaplain: false,
     SCS: true, // Required / locked on
   });
 
-  const handleNextStep = () => {
+  // Prepopulate state when navigating between questions
+  const resetQuestionState = (index: number) => {
+    if (!questions[index]) return;
+    const q = questions[index];
+    const savedAns =
+      (answers[q.id] as string) ||
+      (Array.isArray(q.current_answer)
+        ? q.current_answer[0]
+        : typeof q.current_answer === "string"
+          ? q.current_answer
+          : null);
+    setSelectedOption(savedAns);
+
+    // Reload follow-up values if pre-saved
+    const savedFollowUp = followUps[q.id] || q.current_follow_up_answer;
+    const followUpConfig = q.follow_up || q.followUp;
+    if (followUpConfig) {
+      const fType = followUpConfig.type?.replace("-", "_");
+      if (fType === "text_sheet") {
+        setTempTextValue(typeof savedFollowUp === "string" ? savedFollowUp : "");
+      } else if (fType === "role_sheet") {
+        if (Array.isArray(savedFollowUp)) {
+          setRoleToggles({
+            Nutritionist: savedFollowUp.includes("Nutritionist"),
+            MentalPerformance:
+              savedFollowUp.includes("Mental Performance") ||
+              savedFollowUp.includes("MentalPerformance"),
+            Chaplain: savedFollowUp.includes("Chaplain"),
+            SCS: true,
+          });
+        } else if (typeof savedFollowUp === "object" && savedFollowUp !== null) {
+          setRoleToggles(savedFollowUp as Record<string, boolean>);
+        } else {
+          setRoleToggles({
+            Nutritionist: false,
+            MentalPerformance: false,
+            Chaplain: false,
+            SCS: true,
+          });
+        }
+      } else {
+        setTempFollowUpOption(typeof savedFollowUp === "string" ? savedFollowUp : null);
+      }
+    } else {
+      setTempFollowUpOption(null);
+      setTempTextValue("");
+    }
+  };
+
+  useEffect(() => {
+    if (currentStep >= 2 && currentStep <= 21 && questions.length > 0) {
+      resetQuestionState(currentStep - 2);
+    }
+  }, [currentStep, questions]);
+
+  const checkFollowUpTrigger = (question: OnboardingQuestion | undefined, option: string | null) => {
+    if (!question || !option) return false;
+    const followUpConfig = question.follow_up || question.followUp;
+    if (!followUpConfig) return false;
+    const triggers = (followUpConfig.trigger_options || followUpConfig.triggerOptions || []).map((t: any) =>
+      typeof t === "object" ? t.label || t.title || String(t) : String(t)
+    );
+    return (
+      triggers.length === 0 ||
+      triggers.includes(option) ||
+      Boolean(followUpConfig.required_when_triggered) ||
+      Boolean(question.follow_up_required)
+    );
+  };
+
+  const handleNextStep = async () => {
     if (currentStep === 0) {
       setCurrentStep(1);
     } else if (currentStep === 1) {
       if (!dataConsent) return;
+      try {
+        await submitConsent({
+          data_use_consent: true,
+          wellness_recommendations_opt_in: wellnessOptIn,
+          policy_version: introData?.policy_version || "v1.0",
+        }).unwrap();
+      } catch (err) {
+        console.log("Consent submission error:", err);
+      }
       setCurrentStep(2);
-      resetQuestionState(0);
     } else if (currentStep >= 2 && currentStep <= 21) {
-      if (!selectedOption) return;
+      if (!selectedOption || !currentQuestion) return;
 
-      // Save answer in Redux
+      const followUpConfig = currentQuestion.follow_up || currentQuestion.followUp;
+      const fType = followUpConfig?.type?.replace("-", "_");
+      const isFollowUpTriggered = checkFollowUpTrigger(currentQuestion, selectedOption);
+
+      const hasFollowUpAnswer =
+        fType === "text_sheet"
+          ? Boolean(tempTextValue.trim())
+          : fType === "role_sheet"
+            ? Object.keys(roleToggles).some((k) => roleToggles[k])
+            : Boolean(tempFollowUpOption);
+
+      // If follow-up is triggered and not yet provided, open the sheet to ask for it
+      if (isFollowUpTriggered && !hasFollowUpAnswer && !isSheetVisible) {
+        setIsSheetVisible(true);
+        return;
+      }
+
+      // Extract follow-up answer if applicable
+      let followUpAnswerPayload: any = undefined;
+      if (followUpConfig) {
+        if (fType === "text_sheet") {
+          followUpAnswerPayload = tempTextValue.trim() || undefined;
+        } else if (fType === "role_sheet") {
+          const activeRoles = Object.keys(roleToggles).filter((k) => roleToggles[k]);
+          if (!activeRoles.includes("SCS")) activeRoles.push("SCS");
+          followUpAnswerPayload = activeRoles;
+        } else {
+          followUpAnswerPayload = tempFollowUpOption || undefined;
+        }
+      }
+
+      // Format main answer payload correctly for multi_select vs single_select
+      let answerPayload: string | string[] = selectedOption;
+      if (currentQuestion.answer_type === "multi_select") {
+        if (currentQuestion.id === 18 && Array.isArray(followUpAnswerPayload) && followUpAnswerPayload.length > 0) {
+          answerPayload = followUpAnswerPayload;
+        } else if (Array.isArray(selectedOption)) {
+          answerPayload = selectedOption;
+        } else {
+          answerPayload = [selectedOption];
+        }
+      }
+
+      // Save answer in Redux state for fast UI recovery
       dispatch(
         saveOnboardingAnswer({
           questionId: currentQuestion.id,
           answer: selectedOption,
         })
       );
+      if (followUpAnswerPayload) {
+        dispatch(
+          saveOnboardingFollowUp({
+            questionId: currentQuestion.id,
+            followUpAnswer: followUpAnswerPayload,
+          })
+        );
+      }
+
+      // Submit to backend API
+      try {
+        await submitAnswer({
+          question_id: currentQuestion.id,
+          answer: answerPayload,
+          follow_up_answer: followUpAnswerPayload,
+        }).unwrap();
+      } catch (err: any) {
+        console.error("Answer submission error:", err);
+        return; // Do NOT advance if answer failed to save!
+      }
 
       // Advance step
       if (currentStep === 21) {
-        setCurrentStep(22);
+        // Complete Baseline
+        try {
+          const res = await completeBaseline().unwrap();
+          if (res) {
+            setBaselineResult({
+              opsScore: res.baseline_ops_score,
+              opsBand: res.baseline_band,
+              componentScores: res.component_scores,
+            });
+            const updatedUser = {
+              ...(user || {}),
+              onboarding_completed: true,
+              onboarding_status: "completed",
+              onboarding_baseline_ops_score: res.baseline_ops_score,
+              onboarding_baseline_band: res.baseline_band,
+              onboarding_component_scores: res.component_scores,
+            };
+            dispatch(updateUser(updatedUser as any));
+            await saveUser(updatedUser);
+          }
+          setCurrentStep(22);
+        } catch (err: any) {
+          console.error("Baseline complete error:", err);
+        }
       } else {
-        const nextIndex = questionIndex + 1;
         setCurrentStep(currentStep + 1);
-        resetQuestionState(nextIndex);
       }
     } else if (currentStep === 22) {
       if (user) {
-        dispatch(updateUser({ ...user, onboarding_completed: true, onboarding_status: "COMPLETED" }));
+        const updatedUser = {
+          ...user,
+          onboarding_completed: true,
+          onboarding_status: "completed",
+        };
+        dispatch(updateUser(updatedUser as any));
+        await saveUser(updatedUser);
       }
-      // Go back to entry index route
-      router.replace("/(tabs)" as any);
+      // Navigate to Home Tab
+      router.replace("/(tabs)/(home)" as any);
     }
   };
 
@@ -137,67 +309,35 @@ export default function OnboardingScreen() {
     } else if (currentStep === 2) {
       setCurrentStep(1);
     } else {
-      const prevIndex = questionIndex - 1;
       setCurrentStep(currentStep - 1);
-      resetQuestionState(prevIndex);
-    }
-  };
-
-  const resetQuestionState = (index: number) => {
-    const q = (questionsData as Question[])[index];
-    const savedAns = answers[q.id] || null;
-    setSelectedOption(savedAns);
-
-    // Reload follow-up values if pre-saved
-    const savedFollowUp = followUps[q.id];
-    if (q.followUp) {
-      if (q.followUp.type === "text-sheet") {
-        setTempTextValue(savedFollowUp || "");
-      } else if (q.followUp.type === "role-sheet") {
-        setRoleToggles(
-          savedFollowUp || {
-            Nutritionist: false,
-            MentalPerformance: false,
-            Chaplain: false,
-            SCS: true,
-          }
-        );
-      } else {
-        setTempFollowUpOption(savedFollowUp || null);
-      }
-    } else {
-      setTempFollowUpOption(null);
-      setTempTextValue("");
     }
   };
 
   const handleOptionSelect = (option: string) => {
     setSelectedOption(option);
 
-    // Check if selecting this option triggers a follow-up sheet
-    if (
-      currentQuestion?.followUp &&
-      currentQuestion.followUp.triggerOptions.includes(option)
-    ) {
-      // Open Bottom Sheet
+    // Open follow-up sheet when user chooses an option that triggers follow-up
+    if (checkFollowUpTrigger(currentQuestion, option)) {
       setIsSheetVisible(true);
     }
   };
 
   const handleSaveFollowUp = () => {
     let finalFollowUpVal: any = null;
+    const followUpConfig = currentQuestion?.follow_up || currentQuestion?.followUp;
 
-    if (currentQuestion?.followUp) {
-      const type = currentQuestion.followUp.type;
-      if (type === "text-sheet") {
-        finalFollowUpVal = tempTextValue;
-      } else if (type === "role-sheet") {
-        finalFollowUpVal = roleToggles;
+    if (followUpConfig && currentQuestion) {
+      const fType = followUpConfig.type?.replace("-", "_");
+      if (fType === "text_sheet") {
+        finalFollowUpVal = tempTextValue.trim();
+      } else if (fType === "role_sheet") {
+        const activeRoles = Object.keys(roleToggles).filter((k) => roleToggles[k]);
+        if (!activeRoles.includes("SCS")) activeRoles.push("SCS");
+        finalFollowUpVal = activeRoles;
       } else {
         finalFollowUpVal = tempFollowUpOption;
       }
 
-      // Save in Redux
       dispatch(
         saveOnboardingFollowUp({
           questionId: currentQuestion.id,
@@ -209,7 +349,7 @@ export default function OnboardingScreen() {
     setIsSheetVisible(false);
   };
 
-  // Render Progress Indicator Bar (20 segments)
+  // Progress Bar (20 segments)
   const renderProgressBar = () => {
     const qCount = 20;
     const activeIndex = questionIndex;
@@ -226,7 +366,7 @@ export default function OnboardingScreen() {
                   i === activeIndex
                     ? theme.colors.primary
                     : i < activeIndex
-                      ? "rgba(0, 163, 196, 0.4)" // Past steps dimmed cyan
+                      ? "rgba(0, 163, 196, 0.4)"
                       : theme.colors.cardBorder,
               },
             ]}
@@ -236,13 +376,21 @@ export default function OnboardingScreen() {
     );
   };
 
+  const followUpConfig = currentQuestion?.follow_up || currentQuestion?.followUp;
+  const normalizedFollowUpType = followUpConfig?.type?.replace("-", "_");
+  const rawTriggers = currentQuestion?.routing_trigger || currentQuestion?.routingTrigger || [];
+  const routingTriggers = rawTriggers.map((t: any) =>
+    typeof t === "object" ? t.label || t.title || String(t) : String(t)
+  );
+  const routingText = currentQuestion?.routing_text || currentQuestion?.routingText;
+
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
       {/* OPSEC banner */}
       <View style={[styles.opsecBanner, { backgroundColor: "#000000", flexDirection: "row", gap: 6 }]}>
         <Image source={require("../../../public/LockIcon.svg")} style={{ width: 10, height: 10 }} />
         <Text style={[styles.opsecText, { color: "#8E8E93" }]}>
-          CUI // OPSEC — Ascend is not a Government system of record.
+          {introData?.opsec_notice_text || "CUI // OPSEC — Ascend is not a Government system of record."}
         </Text>
       </View>
 
@@ -272,7 +420,6 @@ export default function OnboardingScreen() {
         {/* ================= STEP 0: WELCOME SCREEN ================= */}
         {currentStep === 0 && (
           <View style={styles.innerContent}>
-            {/* Shield Logo */}
             <Image
               source={require("../../../assets/app/logo.png")}
               style={styles.largeLogoImage}
@@ -280,21 +427,27 @@ export default function OnboardingScreen() {
             />
 
             <Text style={[styles.stepSubTitle, { color: theme.colors.textSecondary, alignSelf: "flex-start" }]}>
-              FIRST USE · OPERATOR MOBILE · PR-M-001
+              FIRST USE · OPERATOR MOBILE
             </Text>
 
             <Text style={[styles.stepTitle, { color: theme.colors.text, alignSelf: "flex-start" }]}>
-              Welcome, {user?.username || "Capt. Lin"}
+              {introData?.welcome_name ? `Welcome, ${introData.welcome_name}` : `Welcome, ${user?.full_name || "Airman"}`}
             </Text>
 
-            <Text style={[styles.stepDesc, { color: theme.colors.textSecondary, alignSelf: "flex-start", textAlign: "left", paddingHorizontal: 0 }]}>
-              Your readiness baseline helps your team support you from day one. It takes about 3 minutes.
+            <Text
+              style={[
+                styles.stepDesc,
+                { color: theme.colors.textSecondary, alignSelf: "flex-start", textAlign: "left", paddingHorizontal: 0 },
+              ]}
+            >
+              {introData?.intro_body ||
+                "Your readiness baseline helps your team support you from day one. It takes about 3 minutes."}
             </Text>
 
             <View style={{ flex: 1 }} />
 
             <CustomButton
-              label="Begin your readiness baseline"
+              label={introData?.cta_label || "Begin your readiness baseline"}
               onPress={handleNextStep}
               icon={<Ionicons name="arrow-forward" size={16} color="#FFFFFF" />}
               iconPosition="right"
@@ -307,11 +460,16 @@ export default function OnboardingScreen() {
         {currentStep === 1 && (
           <View style={styles.innerContent}>
             <Text style={[styles.stepSubTitle, { color: theme.colors.textSecondary, alignSelf: "flex-start" }]}>
-              FIRST-USE · ONBOARDING · PR-M-002
+              FIRST-USE · ONBOARDING
             </Text>
 
             <Text style={[styles.stepTitle, { color: theme.colors.text, alignSelf: "flex-start" }]}>Before we begin</Text>
-            <Text style={[styles.stepDesc, { color: theme.colors.textSecondary, alignSelf: "flex-start", textAlign: "left", paddingHorizontal: 0 }]}>
+            <Text
+              style={[
+                styles.stepDesc,
+                { color: theme.colors.textSecondary, alignSelf: "flex-start", textAlign: "left", paddingHorizontal: 0 },
+              ]}
+            >
               Two short confirmations before your baseline questions begin.
             </Text>
 
@@ -322,12 +480,10 @@ export default function OnboardingScreen() {
                 { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder },
               ]}
             >
-              <Text style={[styles.cardHeaderTag, { color: theme.colors.textTertiary }]}>
-                PRIVACY SUMMARY
-              </Text>
+              <Text style={[styles.cardHeaderTag, { color: theme.colors.textTertiary }]}>PRIVACY SUMMARY</Text>
               <Text style={[styles.cardBodyText, { color: theme.colors.text, fontWeight: "700" }]}>
-                Your answers are visible to your assigned providers. You control optional pathways in
-                My team.
+                {introData?.privacy_summary ||
+                  "Your answers are visible to your assigned providers. You control optional pathways in My team."}
               </Text>
             </View>
 
@@ -338,20 +494,24 @@ export default function OnboardingScreen() {
                 { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder },
               ]}
             >
-              <Text style={[styles.cardHeaderTag, { color: theme.colors.textTertiary }]}>
-                CONFIRMATIONS
-              </Text>
+              <Text style={[styles.cardHeaderTag, { color: theme.colors.textTertiary }]}>CONFIRMATIONS</Text>
 
               <CustomSwitch
-                label="Data-use consent"
-                description="I consent to Ascend processing my readiness data per the privacy summary above."
+                label={introData?.consent_required_label || "Data-use consent"}
+                description={
+                  introData?.consent_required_description ||
+                  "I consent to Ascend processing my readiness data per the privacy summary above."
+                }
                 value={dataConsent}
                 onValueChange={setDataConsent}
               />
 
               <CustomSwitch
-                label="Wellness recommendations"
-                description="Send me wellness recommendations via in-app messages."
+                label={introData?.optional_opt_in_label || "Wellness recommendations"}
+                description={
+                  introData?.optional_opt_in_description ||
+                  "Send me wellness recommendations via in-app messages."
+                }
                 value={wellnessOptIn}
                 onValueChange={setWellnessOptIn}
               />
@@ -359,21 +519,23 @@ export default function OnboardingScreen() {
 
             {/* Medical Record Disclaimer */}
             <View style={[styles.disclaimerBox, { backgroundColor: "#1C1F26" }]}>
-              <Image source={require("../../../public/InfoIcon.svg")} style={{ width: 18, height: 18, marginRight: 12, tintColor: "#00A3C4" }} />
+              <Image
+                source={require("../../../public/InfoIcon.svg")}
+                style={{ width: 18, height: 18, marginRight: 12, tintColor: "#00A3C4" }}
+              />
               <View style={{ flex: 1 }}>
                 <Text style={[styles.disclaimerHeader, { color: "#FFFFFF" }]}>NOT A MEDICAL RECORD</Text>
                 <Text style={[styles.disclaimerDesc, { color: theme.colors.textSecondary }]}>
-                  Ascend is not a Government system of record. Your medical record stays with your
-                  healthcare team.
+                  Ascend is not a Government system of record. Your medical record stays with your healthcare team.
                 </Text>
               </View>
             </View>
 
             <View style={styles.buttonWrapper}>
               <CustomButton
-                label="Continue"
+                label={isConsentSubmitting ? "Submitting..." : "Continue"}
                 onPress={handleNextStep}
-                disabled={!dataConsent}
+                disabled={!dataConsent || isConsentSubmitting}
                 icon="➔"
                 style={{ width: "100%" }}
               />
@@ -387,28 +549,39 @@ export default function OnboardingScreen() {
             {/* Footer Metadata */}
             <View style={{ marginTop: 24, alignItems: "center" }}>
               <Text style={[styles.metaText, { color: theme.colors.textTertiary }]}>
-                Performing user {user?.username || "capt.lin"} · {user?.userId || "USR-6601"}
+                Performing user {user?.full_name || "Airman"} · {user?.email}
               </Text>
               <Text style={[styles.metaText, { color: theme.colors.textTertiary }]}>
-                Policy version ascend-ia-01@1.4.0
+                Policy version {introData?.policy_version || "v1.0"}
               </Text>
-              <Text style={[styles.metaText, { color: theme.colors.textTertiary }]}>
-                Trace FIRSTUSE-7C2B
-              </Text>
+              {introData?.trace_id && (
+                <Text style={[styles.metaText, { color: theme.colors.textTertiary }]}>
+                  Trace {introData.trace_id}
+                </Text>
+              )}
             </View>
           </View>
         )}
 
         {/* ================= STEP 2..21: QUESTIONS ================= */}
+        {currentStep >= 2 && currentStep <= 21 && (isQuestionsLoading || !currentQuestion) && (
+          <View style={[styles.innerContent, { paddingVertical: 40, alignItems: "center" }]}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <Text style={[styles.stepDesc, { color: theme.colors.textSecondary, marginTop: 16 }]}>
+              Loading questions...
+            </Text>
+          </View>
+        )}
         {currentStep >= 2 && currentStep <= 21 && currentQuestion && (
           <View style={styles.innerContent}>
-            {/* Step Indicators */}
             <View style={styles.questionHeader}>
               <Text style={[styles.questionStepText, { color: theme.colors.textSecondary }]}>
-                QUESTION {currentQuestion.id} OF 20
+                QUESTION {currentQuestion.id || currentQuestion.question_number || currentStep - 1} OF {questions.length || 20}
               </Text>
               <Text style={[styles.questionTimeText, { color: theme.colors.textSecondary }]}>
-                ABOUT {Math.max(1, Math.ceil((21 - currentStep) / 4))} MINUTES
+                {currentQuestion.estimated_time_label
+                  ? currentQuestion.estimated_time_label.toUpperCase()
+                  : `ABOUT ${Math.max(1, Math.ceil((21 - currentStep) / 4))} MINUTES`}
               </Text>
             </View>
 
@@ -422,7 +595,11 @@ export default function OnboardingScreen() {
               ]}
             >
               <Text style={[styles.cardHeaderTag, { color: theme.colors.primary }]}>
-                {currentQuestion.category}
+                {currentQuestion.readiness_component
+                  ? `${currentQuestion.readiness_component.toUpperCase()} · BASELINE`
+                  : currentQuestion.category?.includes("BASELINE")
+                    ? currentQuestion.category
+                    : `${currentQuestion.category || "READINESS"} · BASELINE`}
               </Text>
               <Text style={[styles.questionTitleText, { color: theme.colors.text }]}>
                 {currentQuestion.question}
@@ -433,8 +610,13 @@ export default function OnboardingScreen() {
 
               {/* Radio options */}
               <View style={styles.optionsList}>
-                {currentQuestion.options.map((option, idx) => {
+                {(currentQuestion.options || []).map((optionItem: any, idx: number) => {
+                  const option =
+                    typeof optionItem === "object"
+                      ? optionItem.label || optionItem.title || optionItem.text || String(optionItem)
+                      : String(optionItem);
                   const isActive = selectedOption === option;
+
                   return (
                     <Pressable
                       key={idx}
@@ -447,9 +629,7 @@ export default function OnboardingScreen() {
                         },
                       ]}
                     >
-                      <Text style={[styles.optionText, { color: theme.colors.text }]}>
-                        {option}
-                      </Text>
+                      <Text style={[styles.optionText, { color: theme.colors.text }]}>{option}</Text>
                       <View
                         style={[
                           styles.radioCircle,
@@ -457,12 +637,7 @@ export default function OnboardingScreen() {
                         ]}
                       >
                         {isActive && (
-                          <View
-                            style={[
-                              styles.radioDot,
-                              { backgroundColor: theme.colors.primary },
-                            ]}
-                          />
+                          <View style={[styles.radioDot, { backgroundColor: theme.colors.primary }]} />
                         )}
                       </View>
                     </Pressable>
@@ -471,7 +646,7 @@ export default function OnboardingScreen() {
               </View>
 
               {/* Conditional Warning / Routing Note */}
-              {selectedOption && currentQuestion.routingTrigger?.includes(selectedOption) && currentQuestion.routingText && (
+              {selectedOption && routingTriggers.includes(selectedOption) && routingText && (
                 <View
                   style={[
                     styles.routingBanner,
@@ -482,24 +657,31 @@ export default function OnboardingScreen() {
                   ]}
                 >
                   <Text style={styles.bannerIcon}>⚠️</Text>
-                  <Text style={[styles.bannerText, { color: theme.colors.warningText }]}>
-                    {currentQuestion.routingText}
-                  </Text>
+                  <Text style={[styles.bannerText, { color: theme.colors.warningText }]}>{routingText}</Text>
                 </View>
               )}
             </View>
 
             {/* Bottom response button */}
             <CustomButton
-              label={selectedOption ? "Next question" : "Choose a response"}
+              label={
+                isAnswerSubmitting || isBaselineSubmitting
+                  ? "Saving..."
+                  : selectedOption
+                    ? currentStep === 21
+                      ? "Complete Baseline"
+                      : currentQuestion.submit_label || "Next question"
+                    : "Choose a response"
+              }
               onPress={handleNextStep}
-              disabled={!selectedOption}
-              icon="➔"
+              disabled={!selectedOption || isAnswerSubmitting || isBaselineSubmitting}
+              // icon="➔"
               style={{ width: "100%", marginTop: 16 }}
             />
 
             <Text style={[styles.onboardingFooterText, { color: theme.colors.textTertiary }]}>
-              Your responses are used to build your readiness baseline, not evaluation.
+              {currentQuestion.footer_note ||
+                "Your responses are used to build your readiness baseline, not evaluation."}
             </Text>
           </View>
         )}
@@ -507,23 +689,36 @@ export default function OnboardingScreen() {
         {/* ================= STEP 22: COMPLETION SCREEN ================= */}
         {currentStep === 22 && (
           <View style={styles.innerContent}>
-            {/* Big Success Icon */}
             <View style={[styles.successIconContainer, { backgroundColor: "#132D21" }]}>
               <Text style={styles.successIconText}>✔</Text>
             </View>
 
-            <Text style={[styles.stepSubTitle, { color: theme.colors.textSecondary }]}>
-              FIRST-USE · COMPLETED · PR-M-022
-            </Text>
+            <Text style={[styles.stepSubTitle, { color: theme.colors.textSecondary }]}>FIRST-USE · COMPLETED</Text>
 
-            <Text style={[styles.stepTitle, { color: theme.colors.text }]}>
-              Readiness baseline set
-            </Text>
+            <Text style={[styles.stepTitle, { color: theme.colors.text }]}>Readiness baseline set</Text>
 
-            <Text style={[styles.stepDesc, { color: theme.colors.textSecondary, textAlign: "center" }]}>
-              Thank you! Your responses have been securely synced. You can now access your readiness
-              dashboard.
-            </Text>
+            {baselineResult ? (
+              <View
+                style={[
+                  styles.resultCard,
+                  { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder },
+                ]}
+              >
+                <Text style={[styles.resultOpsScore, { color: theme.colors.primary }]}>
+                  {baselineResult.opsScore}
+                </Text>
+                <Text style={[styles.resultOpsBand, { color: theme.colors.text }]}>
+                  BAND: {baselineResult.opsBand?.toUpperCase()}
+                </Text>
+                <Text style={[styles.stepDesc, { color: theme.colors.textSecondary, marginTop: 8 }]}>
+                  Your initial 5-driver readiness profile has been computed and Day 0 check-in recorded.
+                </Text>
+              </View>
+            ) : (
+              <Text style={[styles.stepDesc, { color: theme.colors.textSecondary, textAlign: "center" }]}>
+                Thank you! Your responses have been securely synced. You can now access your readiness dashboard.
+              </Text>
+            )}
 
             <CustomButton
               label="Enter Dashboard"
@@ -535,17 +730,16 @@ export default function OnboardingScreen() {
       </ScrollView>
 
       {/* ================= FOLLOW-UP BOTTOM SHEET ================= */}
-      {currentQuestion?.followUp && (
+      {followUpConfig && (
         <CustomBottomSheet
           visible={isSheetVisible}
           onClose={() => setIsSheetVisible(false)}
-          title={currentQuestion.followUp.title}
+          title={followUpConfig.title}
           subtitle="OPTIONAL FOLLOW-UP"
         >
           <View style={styles.sheetBody}>
-            {/* Content variant based on followUp type */}
-            {currentQuestion.followUp.type === "severity-sheet" &&
-              currentQuestion.followUp.options?.map((option, idx) => {
+            {(normalizedFollowUpType === "severity_sheet" || normalizedFollowUpType === "toggle_sheet") &&
+              followUpConfig.options?.map((option, idx) => {
                 const isActive = tempFollowUpOption === option.label;
                 return (
                   <Pressable
@@ -563,9 +757,11 @@ export default function OnboardingScreen() {
                       <Text style={[styles.sheetOptionLabel, { color: theme.colors.text }]}>
                         {option.label}
                       </Text>
-                      <Text style={[styles.sheetOptionDesc, { color: theme.colors.textSecondary }]}>
-                        {option.description}
-                      </Text>
+                      {option.description ? (
+                        <Text style={[styles.sheetOptionDesc, { color: theme.colors.textSecondary }]}>
+                          {option.description}
+                        </Text>
+                      ) : null}
                     </View>
                     <View
                       style={[
@@ -574,82 +770,38 @@ export default function OnboardingScreen() {
                       ]}
                     >
                       {isActive && (
-                        <View
-                          style={[
-                            styles.radioDot,
-                            { backgroundColor: theme.colors.primary },
-                          ]}
-                        />
+                        <View style={[styles.radioDot, { backgroundColor: theme.colors.primary }]} />
                       )}
                     </View>
                   </Pressable>
                 );
               })}
 
-            {currentQuestion.followUp.type === "toggle-sheet" &&
-              currentQuestion.followUp.options?.map((option, idx) => {
-                const isActive = tempFollowUpOption === option.label;
-                return (
-                  <Pressable
-                    key={idx}
-                    onPress={() => setTempFollowUpOption(option.label)}
-                    style={[
-                      styles.sheetOptionRow,
-                      {
-                        borderColor: isActive ? theme.colors.primary : "#27272A",
-                        backgroundColor: isActive ? "rgba(0,163,196,0.05)" : "transparent",
-                      },
-                    ]}
-                  >
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.sheetOptionLabel, { color: theme.colors.text, marginBottom: 0 }]}>
-                        {option.label}
-                      </Text>
-                    </View>
-                    <View
-                      style={[
-                        styles.radioCircle,
-                        { borderColor: isActive ? theme.colors.primary : theme.colors.textSecondary },
-                      ]}
-                    >
-                      {isActive && (
-                        <View
-                          style={[
-                            styles.radioDot,
-                            { backgroundColor: theme.colors.primary },
-                          ]}
-                        />
-                      )}
-                    </View>
-                  </Pressable>
-                );
-              })}
-
-            {currentQuestion.followUp.type === "role-sheet" && (
+            {normalizedFollowUpType === "role_sheet" && (
               <View style={styles.checkboxList}>
-                {currentQuestion.followUp.options?.map((option, idx) => (
+                {followUpConfig.options?.map((option, idx) => (
                   <CustomSwitch
                     key={idx}
                     label={option.label}
                     description={option.description}
-                    value={roleToggles[option.label as keyof typeof roleToggles]}
+                    value={roleToggles[option.label] ?? false}
                     onValueChange={(val) => {
-                      if (option.disabled) return;
+                      if (option.disabled || option.label === "SCS") return;
                       setRoleToggles((prev) => ({
                         ...prev,
                         [option.label]: val,
                       }));
                     }}
-                    disabled={option.disabled}
+                    disabled={option.disabled || option.label === "SCS"}
                   />
                 ))}
                 <Text style={[styles.sheetNoteText, { color: theme.colors.textTertiary }]}>
-                  Select all that apply. SC and PT/IM are locked on.
+                  Select all that apply. SCS is locked on.
                 </Text>
               </View>
             )}
 
-            {currentQuestion.followUp.type === "text-sheet" && (
+            {normalizedFollowUpType === "text_sheet" && (
               <View style={styles.textInputWrapper}>
                 <RNTextInput
                   style={[
@@ -661,26 +813,25 @@ export default function OnboardingScreen() {
                     },
                   ]}
                   multiline
-                  placeholder={currentQuestion.followUp.placeholder}
+                  placeholder={followUpConfig.placeholder || "Enter follow-up details..."}
                   placeholderTextColor={theme.colors.textTertiary}
-                  maxLength={currentQuestion.followUp.maxLength}
+                  maxLength={followUpConfig.max_length || followUpConfig.maxLength || 120}
                   value={tempTextValue}
                   onChangeText={setTempTextValue}
                 />
                 <Text style={[styles.charCounter, { color: theme.colors.textTertiary }]}>
-                  {tempTextValue.length} / {currentQuestion.followUp.maxLength}
+                  {tempTextValue.length} / {followUpConfig.max_length || followUpConfig.maxLength || 120}
                 </Text>
               </View>
             )}
 
-            {/* Bottom Actions inside Sheet */}
             <CustomButton
               label="Save follow-up"
               onPress={handleSaveFollowUp}
               disabled={
-                currentQuestion.followUp.type === "text-sheet"
+                normalizedFollowUpType === "text_sheet"
                   ? tempTextValue.trim().length === 0
-                  : currentQuestion.followUp.type === "role-sheet"
+                  : normalizedFollowUpType === "role_sheet"
                     ? false
                     : !tempFollowUpOption
               }
@@ -742,58 +893,39 @@ const styles = StyleSheet.create({
     marginBottom: 32,
     paddingHorizontal: 12,
   },
-  metaBox: {
-    width: "100%",
-    backgroundColor: "#0D0D0E",
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: "#1F1F23",
-    padding: 16,
-    gap: 6,
-    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
-  },
-  metaText: {
-    fontSize: 11,
-    lineHeight: 16,
-  },
   card: {
     width: "100%",
-    borderRadius: 16,
+    borderRadius: 8,
     borderWidth: 1,
-    padding: 20,
+    padding: 16,
     marginBottom: 16,
   },
   cardHeaderTag: {
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.5,
-    marginBottom: 12,
-    textTransform: "uppercase",
+    marginBottom: 8,
   },
   cardBodyText: {
-    fontSize: 15,
-    lineHeight: 22,
+    fontSize: 14,
+    lineHeight: 20,
   },
   disclaimerBox: {
     flexDirection: "row",
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 8,
+    width: "100%",
+    alignItems: "flex-start",
     marginBottom: 24,
   },
-  infoIcon: {
-    fontSize: 18,
-    color: "#00A3C4",
-    marginRight: 12,
-    fontWeight: "bold",
-  },
   disclaimerHeader: {
-    fontSize: 13,
+    fontSize: 11,
     fontWeight: "700",
-    marginBottom: 4,
     letterSpacing: 0.5,
+    marginBottom: 4,
   },
   disclaimerDesc: {
-    fontSize: 13,
+    fontSize: 12,
     lineHeight: 18,
   },
   buttonWrapper: {
@@ -804,6 +936,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 8,
   },
+  metaText: {
+    fontSize: 11,
+    lineHeight: 16,
+  },
+  stepBadge: {
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  stepBadgeText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
   questionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -813,72 +959,66 @@ const styles = StyleSheet.create({
   questionStepText: {
     fontSize: 11,
     fontWeight: "700",
+    letterSpacing: 0.5,
   },
   questionTimeText: {
     fontSize: 11,
     fontWeight: "700",
-  },
-  stepBadge: {
-    backgroundColor: "#1F1F23",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  stepBadgeText: {
-    fontSize: 11,
-    fontWeight: "700",
+    letterSpacing: 0.5,
   },
   progressBarContainer: {
     flexDirection: "row",
     width: "100%",
     gap: 4,
-    height: 4,
     marginBottom: 24,
   },
   progressBarSegment: {
     flex: 1,
+    height: 4,
     borderRadius: 2,
   },
   questionCard: {
     width: "100%",
-    borderRadius: 16,
+    borderRadius: 12,
     borderWidth: 1,
-    padding: 24,
+    padding: 20,
     marginBottom: 16,
   },
   questionTitleText: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "600",
-    marginBottom: 12,
+    marginBottom: 8,
+    lineHeight: 24,
   },
   questionDescText: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 13,
+    lineHeight: 18,
     marginBottom: 20,
   },
   optionsList: {
-    gap: 12,
+    gap: 10,
   },
   optionRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    height: 52,
+    padding: 16,
     borderRadius: 10,
     borderWidth: 1,
-    paddingHorizontal: 16,
   },
   optionText: {
     fontSize: 15,
-    fontWeight: "600",
+    fontWeight: "500",
+    flex: 1,
+    paddingRight: 12,
   },
   radioCircle: {
     width: 20,
     height: 20,
     borderRadius: 10,
     borderWidth: 2,
-    alignItems: "center",
     justifyContent: "center",
+    alignItems: "center",
   },
   radioDot: {
     width: 10,
@@ -887,18 +1027,19 @@ const styles = StyleSheet.create({
   },
   routingBanner: {
     flexDirection: "row",
+    alignItems: "center",
     padding: 12,
     borderRadius: 8,
     borderWidth: 1,
-    marginTop: 20,
+    marginTop: 16,
   },
   bannerIcon: {
     fontSize: 16,
-    marginRight: 10,
+    marginRight: 8,
   },
   bannerText: {
     fontSize: 12,
-    lineHeight: 18,
+    lineHeight: 16,
     flex: 1,
     fontWeight: "500",
   },
@@ -906,64 +1047,81 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: "center",
     marginTop: 16,
+    lineHeight: 16,
   },
   successIconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: "center",
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     justifyContent: "center",
+    alignItems: "center",
     marginTop: 40,
     marginBottom: 24,
   },
   successIconText: {
-    fontSize: 40,
-    color: "#34D399",
+    fontSize: 28,
+    color: "#22C55E",
   },
-  sheetBody: {
-    gap: 12,
-  },
-  sheetOptionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: 16,
-    borderRadius: 10,
+  resultCard: {
+    width: "100%",
+    borderRadius: 12,
     borderWidth: 1,
+    padding: 24,
+    alignItems: "center",
+    marginBottom: 16,
   },
-  sheetOptionLabel: {
-    fontSize: 15,
+  resultOpsScore: {
+    fontSize: 48,
     fontWeight: "700",
     marginBottom: 4,
   },
+  resultOpsBand: {
+    fontSize: 14,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  sheetBody: {
+    paddingBottom: 24,
+  },
+  sheetOptionRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 10,
+  },
+  sheetOptionLabel: {
+    fontSize: 15,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
   sheetOptionDesc: {
-    fontSize: 13,
-    lineHeight: 18,
+    fontSize: 12,
   },
   checkboxList: {
-    width: "100%",
+    gap: 12,
+    marginBottom: 16,
   },
   sheetNoteText: {
-    fontSize: 11,
-    textAlign: "center",
-    marginTop: 12,
+    fontSize: 12,
+    marginTop: 8,
   },
   textInputWrapper: {
-    width: "100%",
+    marginBottom: 16,
   },
   textArea: {
-    width: "100%",
-    height: 120,
-    borderRadius: 10,
+    borderRadius: 8,
     borderWidth: 1,
     padding: 12,
     fontSize: 14,
-    lineHeight: 20,
+    height: 100,
     textAlignVertical: "top",
   },
   charCounter: {
     fontSize: 11,
     textAlign: "right",
-    marginTop: 6,
+    marginTop: 4,
   },
 });

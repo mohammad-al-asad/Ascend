@@ -111,13 +111,13 @@ export default function DataUseScreen() {
             <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
               What Ascend stores
             </Text>
-            {renderSectionList(data.what_we_store)}
+            {renderSectionList(data.what_we_store || data.what_ascend_stores || [])}
 
             {/* Section: What Ascend does not store */}
             <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
               What Ascend does not store
             </Text>
-            {renderSectionList(data.what_we_do_not_store)}
+            {renderSectionList(data.what_we_do_not_store || data.what_ascend_does_not_store || [])}
 
             {/* Section: Who can see your data */}
             <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
@@ -126,13 +126,13 @@ export default function DataUseScreen() {
             <Text style={[styles.sectionSubtext, { color: theme.colors.textSecondary }]}>
               Access is role-bound and minimum-necessary. Every read of a medical record is audited.
             </Text>
-            {renderSectionList(data.who_can_see)}
+            {renderSectionList(data.who_can_see || data.who_can_see_your_data || [])}
 
             {/* Section: What we audit */}
             <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
               What we audit
             </Text>
-            {renderSectionList(data.what_we_audit)}
+            {renderSectionList(data.what_we_audit || [])}
           </>
         ) : null}
 

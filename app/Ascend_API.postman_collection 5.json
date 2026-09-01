@@ -1,0 +1,3680 @@
+{
+  "info": {
+    "name": "Ascend API",
+    "description": "Full Ascend backend API, organized into two independent top-level folders: **App (Mobile - Airman)** for the ascend-app Expo mobile app - organized by its real tab bar (Home/Trends/Support/Profile + pre-tab Auth/Onboarding), each tab broken down into its real sub-screens - and **Admin & Provider Dashboards** for the ascend-admin staff web app - organized by role (Admin/Leadership/SCS/PT-IM/Mental Performance/Nutritionist/Chaplain/IDMT), each role's folder broken down by that role's real sidebar tabs. Each top-level folder manages its own auth tokens (app_* vs admin_*). Test accounts: dash-<role>@ascend.mil / AscendDash!2026 for every staff role, dash-airman@ascend.mil for the App side.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8010/api/v1"
+    },
+    {
+      "key": "app_access_token",
+      "value": ""
+    },
+    {
+      "key": "app_refresh_token",
+      "value": ""
+    },
+    {
+      "key": "admin_access_token",
+      "value": ""
+    },
+    {
+      "key": "admin_refresh_token",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "App (Mobile - Airman)",
+      "item": [
+        {
+          "name": "Auth (pre-tab: src/app/auth/signin.tsx)",
+          "item": [
+            {
+              "name": "Screen config",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/auth/screen-config",
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            },
+            {
+              "name": "Register",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const data = pm.response.json().data;",
+                      "if (data && data.access_token) {",
+                      "  pm.collectionVariables.set('app_access_token', data.access_token);",
+                      "  pm.collectionVariables.set('app_refresh_token', data.refresh_token);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/auth/register",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"e2e-postman-{{$timestamp}}@ascend.mil\",\n  \"password\": \"TestPass!2345\",\n  \"full_name\": \"Postman Test Airman\",\n  \"role\": \"Airman\",\n  \"rank_grade\": \"SrA\",\n  \"unit\": \"Test Unit\"\n}"
+                },
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            },
+            {
+              "name": "Login",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const data = pm.response.json().data;",
+                      "if (data && data.access_token) {",
+                      "  pm.collectionVariables.set('app_access_token', data.access_token);",
+                      "  pm.collectionVariables.set('app_refresh_token', data.refresh_token);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/auth/login",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"dash-airman@ascend.mil\",\n  \"password\": \"AscendDash!2026\",\n  \"remember_me\": false\n}"
+                },
+                "auth": {
+                  "type": "noauth"
+                },
+                "description": "This is what signin.tsx should call. It currently just checks local Redux authSlice state - no real backend call exists yet."
+              }
+            },
+            {
+              "name": "Refresh token",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const data = pm.response.json().data;",
+                      "if (data && data.access_token) { pm.collectionVariables.set('app_access_token', data.access_token); }"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/auth/refresh",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"refresh_token\": \"{{app_refresh_token}}\"\n}"
+                },
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            },
+            {
+              "name": "Me",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/auth/me"
+              }
+            },
+            {
+              "name": "Resend verification code",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/auth/resend-verification-code",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"your-account@ascend.mil\"\n}"
+                },
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            },
+            {
+              "name": "Verify email",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/auth/verify-email",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"your-account@ascend.mil\",\n  \"code\": \"1234\"\n}"
+                },
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            },
+            {
+              "name": "Forgot password",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/auth/forgot-password",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"your-account@ascend.mil\"\n}"
+                },
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            },
+            {
+              "name": "Verify reset code",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/auth/verify-reset-code",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"your-account@ascend.mil\",\n  \"code\": \"1234\"\n}"
+                },
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            },
+            {
+              "name": "Reset password",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/auth/reset-password",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"your-account@ascend.mil\",\n  \"code\": \"1234\",\n  \"new_password\": \"NewTestPass!2345\",\n  \"confirm_password\": \"NewTestPass!2345\"\n}"
+                },
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": "Onboarding (pre-tab: src/app/onboarding/, run in order)",
+          "item": [
+            {
+              "name": "1. First-use status",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/onboarding/first-use/status"
+              }
+            },
+            {
+              "name": "2. Intro",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/onboarding/intro"
+              }
+            },
+            {
+              "name": "3. Questions (all 20 - app currently uses a local questions.json instead of this)",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/onboarding/questions",
+                "description": "ascend-app has its own local src/app/onboarding/questions.json today - this is the real backend equivalent it should call instead, so option labels/follow_up rules stay server-controlled."
+              }
+            },
+            {
+              "name": "4. Submit consent",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/onboarding/consent",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"data_use_consent\": true,\n  \"wellness_recommendations_opt_in\": true,\n  \"policy_version\": \"v1.0\"\n}"
+                }
+              }
+            },
+            {
+              "name": "5. Save step progress",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/onboarding/step-progress",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"onboarding_step\": \"questions\",\n  \"onboarding_status\": \"in_progress\"\n}"
+                }
+              }
+            },
+            {
+              "name": "6a. Answer - simple single_select (Q1 example)",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/onboarding/answer",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"question_id\": 1,\n  \"answer\": \"Ready\"\n}"
+                }
+              }
+            },
+            {
+              "name": "6b. Answer - requires follow_up (Q19 example)",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/onboarding/answer",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"question_id\": 19,\n  \"answer\": \"Physical performance\",\n  \"follow_up_answer\": \"Get back to full run-time standard.\"\n}"
+                },
+                "description": "Q3, Q16, Q17, Q18, Q19, Q20 each define a follow_up block (check the Questions response's `follow_up.trigger_options`). If the selected answer is in trigger_options, follow_up_answer is REQUIRED or you get a 400 - correct backend validation. Repeat for all 20 question_ids before Baseline complete succeeds."
+              }
+            },
+            {
+              "name": "7. Baseline preview",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/onboarding/baseline/preview"
+              }
+            },
+            {
+              "name": "8. Baseline complete",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/onboarding/baseline/complete"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Home tab",
+          "item": [
+            {
+              "name": "Dashboard ((home)/index.tsx)",
+              "item": [
+                {
+                  "name": "Home summary (readiness score)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/dashboards/home",
+                    "description": "The app currently computes its readiness score client-side from onboarding answers - this is the real backend equivalent."
+                  }
+                },
+                {
+                  "name": "5-driver radar data",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/dashboards/trends?days=30",
+                    "description": "Backs the 5-metric radar chart (Physical/Sleep/Mental/Nutritional/Spiritual) - currently mock SVG data in the app."
+                  }
+                },
+                {
+                  "name": "One driver detail (Physical Readiness)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/dashboards/drivers/Physical Readiness"
+                  }
+                },
+                {
+                  "name": "AI insight - latest",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/ai-insights/onboarding/latest"
+                  }
+                },
+                {
+                  "name": "Active recommendations (surfaced on the dashboard)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/recommendations/active"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Check-in ((home)/checkin.tsx - also the floating tab button)",
+              "item": [
+                {
+                  "name": "Daily - get",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/checkins/daily"
+                  }
+                },
+                {
+                  "name": "Daily - submit",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/checkins/daily/submit",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"answers\": [\n    {\n      \"question_id\": 1,\n      \"answer\": \"Ready\"\n    }\n  ]\n}"
+                    },
+                    "description": "Get the real question_id/option labels from 'Daily - get' first - they change based on the day/user state."
+                  }
+                },
+                {
+                  "name": "Weekly - gate",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/checkins/weekly/gate"
+                  }
+                },
+                {
+                  "name": "Weekly - get",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/checkins/weekly"
+                  }
+                },
+                {
+                  "name": "Weekly - submit",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/checkins/weekly/submit",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"answers\": [\n    {\n      \"question_id\": 101,\n      \"answer\": \"Weekly\"\n    }\n  ]\n}"
+                    },
+                    "description": "Will 400 if the weekly cadence gate is locked (locked: true from the gate endpoint) - that's correct, not a bug."
+                  }
+                },
+                {
+                  "name": "Monthly - get",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/checkins/monthly"
+                  }
+                },
+                {
+                  "name": "Monthly - submit",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/checkins/monthly/submit",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"answers\": [\n    {\n      \"question_id\": 201,\n      \"answer\": \"Monthly\"\n    }\n  ]\n}"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Assessments ((home)/assessments.tsx)",
+              "item": [
+                {
+                  "name": "Me",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/assessments/me"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Notifications ((home)/notifications.tsx)",
+              "item": [
+                {
+                  "name": "List",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/notifications"
+                  }
+                },
+                {
+                  "name": "Mark one read",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/notifications/REPLACE_WITH_NOTIFICATION_ID/read"
+                  }
+                },
+                {
+                  "name": "Mark all read",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/notifications/read-all"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "OFT ((home)/oft.tsx)",
+              "item": [
+                {
+                  "name": "My OFT status",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/oft/me"
+                  }
+                }
+              ]
+            }
+          ],
+          "description": "Route (home). Main dashboard + its 4 sub-screens (check-in, assessments, notifications, OFT). The tab bar's floating center 'Check in' button just redirects here (checkin.tsx is a <Redirect>, no endpoints of its own)."
+        },
+        {
+          "name": "Trends tab",
+          "item": [
+            {
+              "name": "Trends (trends/index.tsx)",
+              "item": [
+                {
+                  "name": "Trends - 7 days",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/dashboards/trends?days=7"
+                  }
+                },
+                {
+                  "name": "Trends - 30 days",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/dashboards/trends?days=30"
+                  }
+                },
+                {
+                  "name": "Trends - 90 days",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/dashboards/trends?days=90"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Report (trends/report.tsx)",
+              "item": [
+                {
+                  "name": "Wellness report",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/dashboards/wellness-report"
+                  }
+                },
+                {
+                  "name": "Monthly review",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/dashboards/monthly-review"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Review (trends/review.tsx)",
+              "item": [
+                {
+                  "name": "Unit report",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/dashboards/unit-report"
+                  }
+                }
+              ]
+            }
+          ],
+          "description": "Route trends. All historical/OPS trend charts (sparklines) - currently mock SVG data in the app, real backing already exists."
+        },
+        {
+          "name": "Support tab",
+          "item": [
+            {
+              "name": "My Team (support/index.tsx)",
+              "item": [
+                {
+                  "name": "Pathways",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/support/pathways"
+                  }
+                },
+                {
+                  "name": "My team (assigned providers per pathway)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/support/team"
+                  }
+                },
+                {
+                  "name": "Toggle an optional pathway",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/support/team/Mental Performance/toggle",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"enabled\": true\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "Notifications (bell icon on this screen)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/notifications"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Chat (support/chat.tsx)",
+              "item": [
+                {
+                  "name": "Routing levels",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/routing-levels"
+                  }
+                },
+                {
+                  "name": "Send message",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/messaging/send",
+                    "body": {
+                      "mode": "formdata",
+                      "formdata": [
+                        {
+                          "key": "recipient_id",
+                          "value": "REPLACE_WITH_USER_ID",
+                          "type": "text"
+                        },
+                        {
+                          "key": "body",
+                          "value": "Testing from Postman",
+                          "type": "text"
+                        },
+                        {
+                          "key": "related_recommendation_id",
+                          "value": "",
+                          "type": "text"
+                        },
+                        {
+                          "key": "file",
+                          "type": "file",
+                          "src": ""
+                        }
+                      ]
+                    },
+                    "description": "Multipart form, not JSON - optional file attachment. Leave 'file' empty to send without one. Requires a real TeamAssignment link between sender and recipient or this 403s (correct behavior, not a bug). A blocked send (added 2026-08-24) now returns a real severity (1-5, see OPSEC_TERM_SEVERITY in app/core/notification_rules.py) and writes a real message_blocked_opsec audit entry - previously blocked attempts left no audit trail at all. Every severity still blocks the send (this did not loosen the existing behavior) - severity is real added metadata for audit granularity, matching the mobile app's own 'Level 5 (highest) never routes through messaging' description, which had no backing before this."
+                  }
+                },
+                {
+                  "name": "Scan preview (OPSEC check)",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/messaging/scan",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"body\": \"Check this message for blocked terms before sending\"\n}"
+                    },
+                    "description": "Response now includes a real severity (1-5, null if no terms matched) alongside blocked_terms - added 2026-08-24."
+                  }
+                },
+                {
+                  "name": "Threads",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/threads"
+                  }
+                },
+                {
+                  "name": "Thread with user",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/thread/REPLACE_WITH_OTHER_USER_ID"
+                  }
+                },
+                {
+                  "name": "Message trace",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/message/REPLACE_WITH_MESSAGE_ID/trace"
+                  }
+                },
+                {
+                  "name": "Create group thread",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/messaging/group-threads",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"participant_ids\": [\n    \"REPLACE_WITH_USER_ID_1\",\n    \"REPLACE_WITH_USER_ID_2\"\n  ],\n  \"title\": \"Care team\"\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "Send group message",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/messaging/group-threads/REPLACE_WITH_THREAD_ID/send",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"body\": \"Testing from Postman\"\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "List group threads",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/group-threads"
+                  }
+                },
+                {
+                  "name": "Get group thread",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/group-threads/REPLACE_WITH_THREAD_ID"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Request (support/request.tsx)",
+              "item": [
+                {
+                  "name": "Create request",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/support/requests",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"pathway_key\": \"SCS\",\n  \"message\": \"Testing from Postman\"\n}"
+                    },
+                    "description": "pathway_key must be one of the `key` values from the Pathways response (e.g. SCS, PT/IM, Nutritionist, Mental Performance, Chaplain)."
+                  }
+                },
+                {
+                  "name": "My requests",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/support/requests"
+                  }
+                }
+              ]
+            }
+          ],
+          "description": "Route support. 'My team' screen (pathway toggles) + Chat (real messaging) + Request (submit a support request) sub-screens."
+        },
+        {
+          "name": "Profile tab",
+          "item": [
+            {
+              "name": "Profile (profile/index.tsx)",
+              "item": [
+                {
+                  "name": "Users me",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/users/me"
+                  }
+                },
+                {
+                  "name": "Profile summary",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/users/profile"
+                  }
+                },
+                {
+                  "name": "Update profile settings",
+                  "request": {
+                    "method": "PATCH",
+                    "url": "{{base_url}}/users/profile/settings",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"full_name\": \"Corrected Name\",\n  \"rank_grade\": \"SSgt\",\n  \"theme_preference\": \"dark\",\n  \"notifications_enabled\": true\n}"
+                    },
+                    "description": "full_name/rank_grade/theme_preference/notifications_enabled are all self-editable, all optional (only send what changed). role and unit_id are deliberately absent here - those stay admin/provisioning-set, a self-service edit of either would be a real authorization/assignment risk, not a cosmetic preference."
+                  }
+                },
+                {
+                  "name": "Change password",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/users/change-password",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"current_password\": \"CurrentPass123\",\n  \"new_password\": \"NewPass456\",\n  \"confirm_password\": \"NewPass456\"\n}"
+                    },
+                    "description": "Signed-in self-service change - proves intent with the current password rather than an emailed code (that's the separate /auth/forgot-password flow, for when you're locked out). New password needs 8+ chars, 1 uppercase, 1 number, and must differ from the current one. Neither password is ever written to the audit log."
+                  }
+                },
+                {
+                  "name": "Change email",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/users/change-email",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"new_email\": \"new.address@example.mil\",\n  \"current_password\": \"CurrentPass123\"\n}"
+                    },
+                    "description": "Requires the current password (same 'prove intent' pattern as Change password), since email doubles as the login identifier. On success, is_verified resets to false and a fresh verification code is emailed to the NEW address via the real Resend integration - the old code/expiry were only ever valid for the old address. 400s on a wrong password or a colliding email."
+                  }
+                },
+                {
+                  "name": "Upload avatar (multipart)",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/users/profile/avatar",
+                    "body": {
+                      "mode": "formdata",
+                      "formdata": [
+                        {
+                          "key": "file",
+                          "type": "file",
+                          "src": ""
+                        }
+                      ]
+                    },
+                    "description": "JPG/PNG/HEIC only, 5 MB cap. Not DOCX-sourced (DOCX never asks for a profile photo, and its OPSEC section actively restricts photo uploads) - built as explicit real new scope after a direct ask. Reuses the same encrypted-at-rest FileStorageService as medical records and message attachments, in its own 'avatars' namespace."
+                  }
+                },
+                {
+                  "name": "Get own avatar",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/users/profile/avatar"
+                  }
+                },
+                {
+                  "name": "Delete own avatar",
+                  "request": {
+                    "method": "DELETE",
+                    "url": "{{base_url}}/users/profile/avatar"
+                  }
+                },
+                {
+                  "name": "Get another user's avatar",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/users/REPLACE_WITH_USER_ID/avatar"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Activation (activation.tsx)",
+              "item": [
+                {
+                  "name": "Sign-in history",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/users/sign-in-history"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Records (records.tsx)",
+              "item": [
+                {
+                  "name": "Records home",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/records/home"
+                  }
+                },
+                {
+                  "name": "My uploads",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/records/uploads"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Uploads (uploads.tsx)",
+              "item": [
+                {
+                  "name": "My uploads",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/records/uploads"
+                  }
+                },
+                {
+                  "name": "Upload a document (multipart)",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/records/uploads",
+                    "body": {
+                      "mode": "formdata",
+                      "formdata": [
+                        {
+                          "key": "file",
+                          "type": "file",
+                          "src": ""
+                        },
+                        {
+                          "key": "document_type",
+                          "value": "labs",
+                          "type": "text"
+                        },
+                        {
+                          "key": "access_reason",
+                          "value": "Routine upload for provider review",
+                          "type": "text"
+                        }
+                      ]
+                    },
+                    "description": "document_type: labs|imaging|specialist|dme|other. access_reason min 12 chars."
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Add record (add-record.tsx)",
+              "item": [
+                {
+                  "name": "Upload a document (multipart)",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/records/uploads",
+                    "body": {
+                      "mode": "formdata",
+                      "formdata": [
+                        {
+                          "key": "file",
+                          "type": "file",
+                          "src": ""
+                        },
+                        {
+                          "key": "document_type",
+                          "value": "labs",
+                          "type": "text"
+                        },
+                        {
+                          "key": "access_reason",
+                          "value": "Routine upload for provider review",
+                          "type": "text"
+                        }
+                      ]
+                    },
+                    "description": "Same real endpoint as Uploads - add-record.tsx and uploads.tsx are two entry points to the same real upload action."
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Record detail (record-detail.tsx)",
+              "item": [
+                {
+                  "name": "Record detail",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/records/uploads/REPLACE_WITH_RECORD_ID"
+                  }
+                },
+                {
+                  "name": "Download record file",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/records/uploads/REPLACE_WITH_RECORD_ID/file"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Data use (data-use.tsx)",
+              "item": [
+                {
+                  "name": "Data-use summary",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/records/data-use-summary"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Fly-away kit (flyaway.tsx)",
+              "item": [
+                {
+                  "name": "Fly-away kit",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/records/fly-away-kit"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Workouts (workouts.tsx)",
+              "item": [
+                {
+                  "name": "List workouts",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/workouts"
+                  }
+                },
+                {
+                  "name": "Workout summary",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/workouts/summary"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Log workout (log-workout.tsx -> workout-saved.tsx)",
+              "item": [
+                {
+                  "name": "Log a workout",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/workouts",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"activity_date\": \"2026-08-22\",\n  \"activity_type\": \"cardio\",\n  \"duration_minutes\": 30,\n  \"intensity\": 3,\n  \"completion_status\": \"completed\",\n  \"notes\": \"Easy pace run\",\n  \"session_rating\": 4\n}"
+                    },
+                    "description": "activity_type must be one of: strength, cardio, mobility, recovery, other (custom_title required if 'other'). intensity is RPE 1-5 (an integer), not a text label. workout-saved.tsx is just a confirmation screen after this succeeds - no endpoint of its own."
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Assessments (profile/assessments.tsx - same real endpoint as Home's)",
+              "item": [
+                {
+                  "name": "Me",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/assessments/me"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "OFT (profile/oft.tsx - same real endpoint as Home's)",
+              "item": [
+                {
+                  "name": "My OFT status",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/oft/me"
+                  }
+                }
+              ]
+            }
+          ],
+          "description": "Route profile. Identity/settings/sign-out plus the largest sub-screen group in the app - records, uploads, workouts, fly-away kit, data-use, activation."
+        }
+      ],
+      "description": "Organized to match ascend-app's REAL tab bar (src/app/(tabs)/_layout.tsx: Home, Trends, Support, Profile + a Check-in redirect button) and each tab's real sub-screens, not a generic backend-module grouping. ascend-app is currently 100% mock/local (confirmed - its baseApi.ts RTK Query shell has zero injected endpoints, no fetch/axios call exists anywhere) - every request here is the real backend endpoint that screen should be wired to, not something already connected. Uses app_access_token/app_refresh_token. Run order for a fresh flow: Auth -> Onboarding (in order) -> Home tab -> everything else.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{app_access_token}}",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Admin & Provider Dashboards",
+      "item": [
+        {
+          "name": "Auth (staff login - do this first)",
+          "item": [
+            {
+              "name": "Login (any staff role)",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const data = pm.response.json().data;",
+                      "if (data && data.access_token) {",
+                      "  pm.collectionVariables.set('admin_access_token', data.access_token);",
+                      "  pm.collectionVariables.set('admin_refresh_token', data.refresh_token);",
+                      "}"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/auth/login",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"email\": \"dash-admin@ascend.mil\",\n  \"password\": \"AscendDash!2026\",\n  \"remember_me\": false\n}"
+                },
+                "auth": {
+                  "type": "noauth"
+                },
+                "description": "Swap the email for whichever role you're testing (dash-admin@, dash-scs@, dash-ptim@, dash-mp@, dash-nutritionist@, dash-chaplain@, dash-leadership@, dash-idmt@, dash-superadmin@ - all @ascend.mil, password AscendDash!2026). The account's real role decides what it can call - a 403 means the logged-in role doesn't have that permission, not a bug."
+              }
+            },
+            {
+              "name": "Refresh token",
+              "event": [
+                {
+                  "listen": "test",
+                  "script": {
+                    "exec": [
+                      "const data = pm.response.json().data;",
+                      "if (data && data.access_token) { pm.collectionVariables.set('admin_access_token', data.access_token); }"
+                    ]
+                  }
+                }
+              ],
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/auth/refresh",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"refresh_token\": \"{{admin_refresh_token}}\"\n}"
+                },
+                "auth": {
+                  "type": "noauth"
+                }
+              }
+            },
+            {
+              "name": "Me",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/auth/me"
+              }
+            }
+          ]
+        },
+        {
+          "name": "My Profile (shared /dashboard/profile page, every staff role)",
+          "item": [
+            {
+              "name": "Profile summary",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/users/profile"
+              }
+            },
+            {
+              "name": "Update profile settings",
+              "request": {
+                "method": "PATCH",
+                "url": "{{base_url}}/users/profile/settings",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"full_name\": \"Corrected Name\",\n  \"rank_grade\": \"SSgt\",\n  \"theme_preference\": \"dark\",\n  \"notifications_enabled\": true\n}"
+                }
+              }
+            },
+            {
+              "name": "Change password",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/users/change-password",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"current_password\": \"AscendDash!2026\",\n  \"new_password\": \"NewPass456\",\n  \"confirm_password\": \"NewPass456\"\n}"
+                },
+                "description": "Backs the 'Change password' card on /dashboard/profile. Verifies the current password rather than an emailed code (that's /auth/forgot-password, for when you're locked out). New password needs 8+ chars, 1 uppercase, 1 number, and must differ from the current one. This is what lets an admin-provisioned user take ownership of the initial password an admin handed them - neither password is ever written to the audit log."
+              }
+            },
+            {
+              "name": "Change email",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/users/change-email",
+                "header": [
+                  {
+                    "key": "Content-Type",
+                    "value": "application/json"
+                  }
+                ],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"new_email\": \"new.address@example.mil\",\n  \"current_password\": \"AscendDash!2026\"\n}"
+                },
+                "description": "Same current-password-gated pattern as Change password. On success is_verified resets to false and a fresh verification code is emailed to the NEW address."
+              }
+            },
+            {
+              "name": "Upload avatar (multipart)",
+              "request": {
+                "method": "POST",
+                "url": "{{base_url}}/users/profile/avatar",
+                "body": {
+                  "mode": "formdata",
+                  "formdata": [
+                    {
+                      "key": "file",
+                      "type": "file",
+                      "src": ""
+                    }
+                  ]
+                },
+                "description": "JPG/PNG/HEIC only, 5 MB cap. Not DOCX-sourced - built as explicit real new scope after a direct ask, since no profile-photo concept exists in the requirements at all."
+              }
+            },
+            {
+              "name": "Get own avatar",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/users/profile/avatar"
+              }
+            },
+            {
+              "name": "Delete own avatar",
+              "request": {
+                "method": "DELETE",
+                "url": "{{base_url}}/users/profile/avatar"
+              }
+            },
+            {
+              "name": "Sign-in history",
+              "request": {
+                "method": "GET",
+                "url": "{{base_url}}/users/sign-in-history"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Admin",
+          "item": [
+            {
+              "name": "Overview",
+              "item": [
+                {
+                  "name": "Recent activity (audit log)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/audit-log?page=1&page_size=20"
+                  }
+                },
+                {
+                  "name": "Pending confirmations queue",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/confirmations"
+                  }
+                },
+                {
+                  "name": "System overview (metrics/module shortcuts)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/system/overview"
+                  }
+                },
+                {
+                  "name": "Exports overview",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/exports/overview"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Roles",
+              "item": [
+                {
+                  "name": "Add person (provision a new account)",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/admin/users",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"full_name\": \"Jane Airman\",\n  \"email\": \"jane.airman@ascend.mil\",\n  \"role\": \"SCS\",\n  \"unit_id\": \"23rd SFS\",\n  \"is_active\": true\n}"
+                    },
+                    "description": "Backs the 'Add person' modal. Omit initial_password and the server generates one - it comes back once in the response as `initial_password` (share it directly, it is never emailed and never written to the audit log). Send an explicit initial_password to choose your own (8+ chars, 1 uppercase, 1 number). Only a Superadmin can create a DWS Admin/DWS Superadmin account; a plain Admin gets 403 for those but can create every other role."
+                  }
+                },
+                {
+                  "name": "List users (people directory)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/users",
+                    "description": "Backs the People table. Each row carries name/email/role/unit_id/is_active plus `last_edit_at` (the Last edit column) and `created_at`. `last_edit_at` is derived from the audit log - the most recent real account mutation (provisioned/role changed/unit assigned/access renewed/password reset or changed/deactivation requested) - deliberately NOT User.updated_at, which also moves on an ordinary login or check-in. It is null for an account that has genuinely never been administratively edited; use `created_at` as the fallback there rather than showing an invented date."
+                  }
+                },
+                {
+                  "name": "List users - filtered by role",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/users?role=SCS"
+                  }
+                },
+                {
+                  "name": "Change role",
+                  "request": {
+                    "method": "PATCH",
+                    "url": "{{base_url}}/admin/users/REPLACE_WITH_USER_ID/role",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"role\": \"SCS\"\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "Assign unit",
+                  "request": {
+                    "method": "PATCH",
+                    "url": "{{base_url}}/admin/users/REPLACE_WITH_USER_ID/unit",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"unit_id\": \"REPLACE_WITH_UNIT_ID\"\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "Request deactivation (2nd-reviewer gated)",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/admin/users/REPLACE_WITH_USER_ID/deactivate",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"reason\": \"Separated from service\"\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "Renew access",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/admin/users/REPLACE_WITH_USER_ID/renew-access"
+                  }
+                },
+                {
+                  "name": "Reset password (emails temp password, never returns it)",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/admin/users/REPLACE_WITH_USER_ID/reset-password"
+                  }
+                },
+                {
+                  "name": "Assign My-Support-Team provider",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/admin/users/REPLACE_WITH_USER_ID/assign-provider",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"pathway_key\": \"SCS\",\n  \"provider_user_id\": \"REPLACE_WITH_PROVIDER_USER_ID\"\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "Self-service deactivation queue",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/deactivation-requests"
+                  }
+                },
+                {
+                  "name": "Approve self-service deactivation",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/admin/deactivation-requests/REPLACE_WITH_REQUEST_ID/approve"
+                  }
+                },
+                {
+                  "name": "Reject self-service deactivation",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/admin/deactivation-requests/REPLACE_WITH_REQUEST_ID/reject"
+                  }
+                },
+                {
+                  "name": "Role catalog",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/roles/catalog",
+                    "description": "Backs the Role catalog table. Per row: role, cluster (the CATEGORY column - Staff | Contractor | Officer | System, matching the screen's own filter buttons), scope, member_count (the ASSIGNED column - real live counts from the users collection, not mock numbers), last_edit (the most recent of that role's real role_changed OR user_provisioned events - both count as a real edit to the role's history, since POST /admin/users can grant a role at creation with no role_changed event at all), and audit_entry_count. `cluster` and `scope` are display-only labels and are never consulted for an access decision - real scoping lives in RoleScopeConfig (cohort_k / visible_components) and each route's require_roles(...). The `Plan` row carries is_real_role: false with honest zero counts: it renders because the design lists it, but Plan is not in SUPPORTED_ROLES so nobody can hold it. Every other row is is_real_role: true. DWS Superadmin is returned too even though the design folds it into ADMIN."
+                  }
+                },
+                {
+                  "name": "Accounts & onboarding summary",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/roles/accounts-onboarding-summary",
+                    "description": "Backs the Roles & RBAC 'Accounts & onboarding' card's 6 metrics. account_status is real is_active/access_expires_at counts. onboarding.in_flight_count is scoped to Airman only (ROLE_PERMISSIONS grants complete_onboarding exclusively to Airman - a staff/admin account's onboarding_status sits at its model default forever since the concept never applies to it; counting every role inflated this from 65 to 116/117 before the scoping fix). onboarding.awaiting_role_confirmation_count is a real PendingConfirmation(action_type=role_change, status=pending) count, cross-checked against GET /admin/confirmations. access_expiration reuses the same real counts as the System dashboard, plus an explicit renewal_note: the mock's screen text claims scopes 'renew automatically on annual review', but app/models/user.py documents access_expires_at is never auto-renewed by any background process - renewal is the existing manual POST /admin/users/{id}/renew-access action, kept honest here rather than matching the mock's false claim. assigned_providers is the real always_available pathway list (SCS + PT/IM). effective_permissions is a reference note pointing at GET /roles/matrix, no new computation. purpose_consent reuses the existing Chaplain/Purpose pathway toggle summary."
+                  }
+                },
+                {
+                  "name": "RBAC matrix",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/roles/matrix",
+                    "description": "9 capability rows x the screen's 10 display columns. Cell states: full | conditional | gated | none. IMPORTANT: `matrix[].roles` is the DECLARED policy transcribed from the design - it is what the screen renders, and it deliberately does NOT always equal what the API actually permits. Each row also carries `enforced` (what that capability's real route gate produces) and the response carries a top-level `divergences` array listing every cell where the two disagree, so the difference is inspectable rather than hidden. Never make an access decision from `roles`; the real route gates are the authority. The PLAN column is display-only - `Plan` is intentionally not a real role (not in SUPPORTED_ROLES, no permissions, no dashboard, no DOCX requirement), so its `enforced` value is `unenforced` and nobody can hold it."
+                  }
+                },
+                {
+                  "name": "Contract question registry",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/question-registry",
+                    "description": "Real 46-question registry: 20 onboarding (O1-O20) + 6 daily (D1-D6) + 10 weekly (W1-W10) + 10 monthly (M1-M10). Fixed 2026-08-23: originally summed to 40 because the daily check-in bank (app/core/checkin_question_bank.py, live-wired into CheckinService) was left out entirely - its questions are literally labeled D1-D6, not a fabricated 'Driver' bank as first assumed. Each row carries readiness_component, routing (derived from the same component ownership used elsewhere), and direction ('Higher = better' / 'Lower = better') - direction is real for every row, derived the same way the live scoring engine derives it (question.get('reverse_scored', False); every one of the 46 real questions is currently False, so every row is genuinely 'Higher = better' today). current_version is the real active QuestionBankVersion (see below), or null if an Admin has never recorded one - never fabricated. No per-question validation_status field - see Question Bank Version below for the real, whole-bank-level equivalent."
+                  }
+                },
+                {
+                  "name": "Record a question bank version",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/admin/question-bank-versions",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"version_id\": \"2026.8\",\n  \"change_reason\": \"Quarterly review - no wording changes\"\n}"
+                    },
+                    "description": "DOCX Table 22 'Question Bank Version' entity - version_id/effective_date/retired_date/approved_by/onboarding_daily_weekly_monthly_question_set_id/change_reason. Real whole-bank approval/version record, built 2026-08-23 after re-checking the Contract Question Registry against the DOCX data dictionary - there is no per-question validation concept anywhere, only this whole-bank one, and it had no model/endpoint until now. approved_by is set server-side from the real caller. The active version (surfaced as current_version on GET /admin/question-registry) is the most recent one whose effective_date is today or earlier and is not yet retired - same effective-dating pattern as Scoring Configuration, plus the real retired_date gate that entity doesn't have. Audit logs question_bank_version_created."
+                  }
+                },
+                {
+                  "name": "List question bank versions",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/question-bank-versions"
+                  }
+                },
+                {
+                  "name": "Retire a question bank version",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/admin/question-bank-versions/REPLACE_WITH_VERSION_ID/retire",
+                    "description": "Sets retired_date to today - explicit action, not an automatic side effect of recording a newer version (DOCX: 'without breaking scoring history'). 400 if already retired. Audit logs question_bank_version_retired."
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Scope",
+              "item": [
+                {
+                  "name": "Scope config - all roles",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/roles/scope-config"
+                  }
+                },
+                {
+                  "name": "Scope config - one role",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/roles/scope-config?role=SCS"
+                  }
+                },
+                {
+                  "name": "Update scope config",
+                  "request": {
+                    "method": "PATCH",
+                    "url": "{{base_url}}/roles/scope-config/SCS",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"cohort_k\": 5,\n  \"visible_components\": [\n    \"Physical Readiness\",\n    \"Sleep Readiness\"\n  ]\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "Scope matrix (coverage map)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/roles/scope-matrix"
+                  }
+                },
+                {
+                  "name": "Scope resolve (per-user drill-down)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/roles/scope-resolve?role=SCS&unit_id=REPLACE_WITH_UNIT_ID"
+                  }
+                },
+                {
+                  "name": "Pathway matrix",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/roles/pathway-matrix",
+                    "description": "Real staffing/opt-in counts for the 3 optional pathways (Nutritionist, Mental Performance, Chaplain), merged with each one's real approval object (built 2026-08-23: the mock's APPROVAL/ENABLEMENT/ACCESS DATES columns were literally the same 3 hardcoded strings copy-pasted across every row in ascend-admin - no DOCX grounding, no backend field. Built as real new scope per explicit instruction, same category as PendingConfirmation). approval.status is 'pending' until an Admin calls approve, then 'approved', then 'enabled' - honest defaults, never fabricated dates."
+                  }
+                },
+                {
+                  "name": "Approve a pathway",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/roles/pathway-approvals/Nutritionist/approve",
+                    "description": "Admin/Superadmin approves one of the 3 optional pathways. SCS/PT-IM (always_available) 400 - they never go through approval. Audit logs pathway_approved."
+                  }
+                },
+                {
+                  "name": "Enable a pathway",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/roles/pathway-approvals/Nutritionist/enable",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"access_policy\": \"Caseload window - 12 months\"\n}"
+                    },
+                    "description": "400 if the pathway hasn't been approved yet. access_policy is optional free text (matches the mock's ACCESS DATES column, but admin-entered real text, not an invented date). Audit logs pathway_enabled."
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Audit log",
+              "item": [
+                {
+                  "name": "Search/filter audit log",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/audit-log?page=1&page_size=50"
+                  }
+                },
+                {
+                  "name": "Search - by event_type",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/audit-log?event_type=login_success&page=1&page_size=50"
+                  }
+                },
+                {
+                  "name": "Category rollup (24h/7d/30d)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/audit-log/category-rollup"
+                  }
+                },
+                {
+                  "name": "Overview stats",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/audit-log/stats",
+                    "description": "Backs the Audit log screen's 4 quick-metric cards. count_24h/count_7d/percent_vs_7d_avg were already real; destructive_action_total_count/_pending_review_count added 2026-08-23 - this method's own docstring already promised a 'destructive-action snapshot' that the code never actually returned (caught re-checking the live 'Destructive actions' card). Sourced from PendingConfirmation, whose own docstring literally calls itself the 'confirmation queue for destructive admin actions' - every action type it tracks counts (role_change/deactivation/export/idmt_handoff), not a narrowed subset."
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Exports",
+              "item": [
+                {
+                  "name": "Exports overview",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/exports/overview"
+                  }
+                },
+                {
+                  "name": "Required contract reports (9, DOCX Table 26)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/reports/required-contract-reports",
+                    "description": "Backs the 'X required contract reports' panel - real, DOCX-verbatim this time, not fabricated like the rest of that panel's columns. DOCX Table 26 ('Report | Required Sections | Primary Users') names exactly 9 reports; this endpoint's docx_name/required_sections/primary_users are transcribed directly from it. Built 2026-08-23 realigning the report catalog: 3 of the 9 (idmt_handoff_summary/medical_records_audit/performance_summary_export) had no builder anywhere before this - all 3 restricted-sensitivity, added to REPORT_BUILDERS in both places it's defined (admin/routes.py and scheduled_export_service.py - kept in sync). A 4th, leadership_aggregate_readiness, replaces the pre-existing wing_weekly_ops/monthly_cohort_review/annual_wing_readiness (all 3 explicitly 'not DOCX-sourced', each narrower) with a real composite matching DOCX's actual required sections (OPS trend, reconditioning status, utilization summary, equipment gaps - 'recommendations' omitted, no real aggregate data source for it). last_generated_at/last_export_status are real, derived from the most recent actual ReportExport for that report_type - null/never for one that's never been generated. No due date, no named approver, no 'CUI' label - none of those have any real backing anywhere, unlike the report list itself."
+                  }
+                },
+                {
+                  "name": "Create scheduled export",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/admin/scheduled-exports",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"Weekly Wing OPS\",\n  \"report_type\": \"wing_weekly_ops\",\n  \"export_format\": \"pdf\",\n  \"cadence\": \"weekly\",\n  \"recipient_role\": \"Wing CC + DPH\"\n}"
+                    },
+                    "description": "recipient_role added 2026-08-23 (now required) - a real DOCX Data Dictionary field on the ReportExport this schedule eventually creates (Report | ...recipient_role...), previously only ever defaulted to the generating admin's own role for on-demand exports. sensitivity_level is NOT client-supplied - computed once at creation from REPORT_SENSITIVITY (the same real aggregate/controlled/restricted gating already used for on-demand exports and the scheduler's own restricted-export second-reviewer check), not the mock's free-text 'Scope' field, which would have duplicated that gating with a second, driftable copy. Live-verified end to end: an aggregate report_type derives sensitivity_level='aggregate', a restricted one derives 'restricted', and when the scheduler actually executes a due schedule the resulting real ReportExport row carries the schedule's recipient_role through on both the plain-export and the restricted/PendingConfirmation paths."
+                  }
+                },
+                {
+                  "name": "List scheduled exports",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/scheduled-exports"
+                  }
+                },
+                {
+                  "name": "Edit a schedule (name/cadence/format/recipient/status)",
+                  "request": {
+                    "method": "PATCH",
+                    "url": "{{base_url}}/admin/scheduled-exports/REPLACE_WITH_SCHEDULE_ID",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"Renamed schedule\",\n  \"cadence\": \"monthly\",\n  \"export_format\": \"pdf\",\n  \"recipient_role\": \"DPH\"\n}"
+                    },
+                    "description": "Extended 2026-08-23 - previously status-only (pause/resume). Backs the Exports 'Schedules' table's Edit action, which had no real support beyond pause/resume. Only the fields given are changed - omit any field to leave it as-is, so {\"status\": \"paused\"} still works exactly as before. report_type (and therefore sensitivity_level) is deliberately never editable, matching the design's own Edit wizard, which never re-asks for it either. Changing cadence recomputes next_run_at from now, same as at creation. Audit-logs scheduled_export_updated (or _paused/_resumed if status is the only field changing) with an old->new diff per field. Live-verified: a 4-field edit correctly updated all 4 and recomputed next_run_at; invalid cadence/export_format correctly 400; an empty body correctly no-ops without writing a spurious audit entry."
+                  }
+                },
+                {
+                  "name": "Delete a schedule",
+                  "request": {
+                    "method": "DELETE",
+                    "url": "{{base_url}}/admin/scheduled-exports/REPLACE_WITH_SCHEDULE_ID"
+                  }
+                },
+                {
+                  "name": "View a report",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/reports/injury",
+                    "description": "report_type: injury | assessment_completion | utilization | prs_qcp | audit_log | oft_metrics | wing_weekly_ops | monthly_cohort_review | annual_wing_readiness | leadership_aggregate_readiness | idmt_handoff_summary | medical_records_audit | performance_summary_export. The last 4 + leadership_aggregate_readiness added 2026-08-23 realigning the catalog against DOCX Table 26's real 9 required reports - see 'Required contract reports' above."
+                  }
+                },
+                {
+                  "name": "Export a report (CSV/PDF)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/reports/utilization/export?date_range=current&export_format=csv",
+                    "description": "'restricted' reports (injury, audit_log, idmt_handoff_summary, medical_records_audit, performance_summary_export) return 202 pending-approval instead of the file - approve via Confirmations below."
+                  }
+                },
+                {
+                  "name": "Export PRS coverage-hours evidence",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/reports/prs_evidence/export?export_format=csv"
+                  }
+                },
+                {
+                  "name": "Export log history",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/reports/export-log/history",
+                    "description": "Each entry now carries a real file_size_bytes (added 2026-08-23) - the Exports 'Recent exports' panel showed a size in MB with no backing anywhere (hardcoded per-row in ascend-admin). Set only where bytes are actually rendered: immediately for a plain/aggregate export (len(content_bytes) at creation, live-verified: 526 for a real wing_weekly_ops CSV, matching the download's real Content-Length exactly). For a restricted export it's honestly null while pending_approval - the real size genuinely isn't known until the first real download materializes it (live-verified: null before approval, 953 after downloading a real approved injury export, again matching Content-Length exactly). Never estimated - doesn't conflict with the download route's 'no sensitive bytes stored at rest' design, since only the byte count is persisted."
+                  }
+                },
+                {
+                  "name": "Export log - search",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/reports/export-log/search?q=injury"
+                  }
+                },
+                {
+                  "name": "Export log - search",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/reports/export-log/search?q=injury"
+                  }
+                },
+                {
+                  "name": "Download an approved/completed export",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/reports/export-log/REPLACE_WITH_EXPORT_ID/download"
+                  }
+                },
+                {
+                  "name": "Set report lifecycle status",
+                  "request": {
+                    "method": "PATCH",
+                    "url": "{{base_url}}/admin/reports/export-log/REPLACE_WITH_EXPORT_ID/lifecycle",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"lifecycle_status\": \"ready\"\n}"
+                    },
+                    "description": "lifecycle_status: draft | ready | sent | archived | in_review"
+                  }
+                },
+                {
+                  "name": "Confirmations - list pending",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/confirmations",
+                    "description": "Each confirmation now carries a real scope_summary (added 2026-08-23) - a Figma 'Review Pending Request' modal showed a SCOPE field with no backing anywhere (hardcoded per-row in ascend-admin's admin-store.ts). Computed once at request time from already-real data, same pattern as target_summary/consequence_summary: role_change/deactivation use the affected user's real role + unit_id ('SCS - no unit'), idmt_handoff uses its real content_category + target role ('reconditioning - Airman'), export uses sensitivity_level + recipient_role ('restricted - DWS Superadmin'). Live-verified real values for all 4 action types. Note: the same mock's RISK CODE ('Level L4') is deliberately NOT matched - app/services/report_export_service.py already documents choosing non-L-prefixed risk tiers (low/elevated/high) specifically to avoid colliding with this system's real, differently-meaning L0-L5 clinical routing-escalation levels."
+                  }
+                },
+                {
+                  "name": "Confirmations - list all",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/confirmations?status_filter=all"
+                  }
+                },
+                {
+                  "name": "Confirmations - approve (different admin than requester)",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/admin/confirmations/REPLACE_WITH_CONFIRMATION_ID/approve"
+                  }
+                },
+                {
+                  "name": "Confirmations - reject",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/admin/confirmations/REPLACE_WITH_CONFIRMATION_ID/reject",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"reason\": \"Insufficient justification\"\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "Confirmations - revert",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/admin/confirmations/REPLACE_WITH_CONFIRMATION_ID/revert"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "System",
+              "item": [
+                {
+                  "name": "System diagnostics (DB ping, scheduler, AI config)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/system/diagnostics"
+                  }
+                },
+                {
+                  "name": "System overview (uptime/thresholds/queues)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/system/overview",
+                    "description": "active_sessions/pending_transmission_count/threshold_rules.confidence_rule added 2026-08-23, closing 2 of the System screen's real gaps. active_sessions is NOT a real session store (this app is stateless-JWT, no server-side session table) - it's a real, explicitly-labeled proxy: users whose real last_login_at falls within the last 30 minutes (our own inference, no design/DOCX source defines 'active session'), broken into staff/admin/imt. Live-verified it changes with real logins, not static. pending_transmission_count is real, not inferred - IdmtHandoff already tracks a real approved -> transmitted state transition (DOCX Section 8.5); this counts handoffs sitting in 'approved' with no transmitted_date yet. Live-verified reactive: approving a real pending IDMT handoff moved this from 0 to 1. confidence_rule is the real categorical logic from calculate_confidence() written out, not the mock's fabricated '>80%' numeric threshold - this system has no percentage confidence concept. Still genuinely unbacked and NOT invented here: 24h uptime %, a backup system, and a 'Compliance - Nd' day-count - none tracked anywhere in this backend."
+                  }
+                },
+                {
+                  "name": "Create scoring config",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/admin/scoring-config",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"effective_date\": \"2026-08-20\",\n  \"physical_weight\": 0.25,\n  \"sleep_weight\": 0.2,\n  \"mental_weight\": 0.2,\n  \"nutritional_weight\": 0.15,\n  \"spiritual_weight\": 0.2\n}"
+                    },
+                    "description": "The 5 weights must sum to 1.0 or this 422s (real validation)."
+                  }
+                },
+                {
+                  "name": "List scoring config history",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/scoring-config"
+                  }
+                },
+                {
+                  "name": "Create recommendation threshold config",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/admin/recommendation-thresholds",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"effective_date\": \"2026-08-20\",\n  \"high_threshold\": 40,\n  \"moderate_threshold\": 60\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "List recommendation threshold history",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/recommendation-thresholds"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Org Units & Provider Ops (not its own tab, but real Admin functionality)",
+              "item": [
+                {
+                  "name": "Create org unit",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/admin/org-units",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"name\": \"432 Test Wing\",\n  \"unit_type\": \"wing\",\n  \"parent_id\": null\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "List org units",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/org-units"
+                  }
+                },
+                {
+                  "name": "Set unit emergency contacts",
+                  "request": {
+                    "method": "PUT",
+                    "url": "{{base_url}}/admin/emergency-contacts/REPLACE_WITH_UNIT_ID",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"scs_on_call_phone\": \"555-0100\",\n  \"ptim_clinic_phone\": \"555-0101\",\n  \"ptim_clinic_hours\": \"0700-1600 M-F\",\n  \"chaplain_hotline_phone\": \"555-0102\",\n  \"family_contact_note\": \"Ask for the duty NCO\"\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "Add provider credential",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/admin/credentials",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"provider_id\": \"REPLACE_WITH_PROVIDER_USER_ID\",\n  \"credential_type\": \"CSCS\",\n  \"issuing_body\": \"NSCA\",\n  \"issued_date\": \"2024-01-15\",\n  \"expiration_date\": \"2027-01-15\"\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "List credentials",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/credentials"
+                  }
+                },
+                {
+                  "name": "Log equipment/supply gap",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/admin/equipment-gaps",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"item\": \"Resistance bands\",\n  \"supply_need\": \"Need 10 more sets\",\n  \"priority\": \"medium\"\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "List equipment/supply gaps",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/equipment-gaps"
+                  }
+                },
+                {
+                  "name": "Update equipment gap status",
+                  "request": {
+                    "method": "PATCH",
+                    "url": "{{base_url}}/admin/equipment-gaps/REPLACE_WITH_GAP_ID",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"status\": \"ordered\",\n  \"included_in_report\": true\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "Log utilization event",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/admin/utilization-events",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"event_type\": \"training\",\n  \"opportunity_offered\": \"Nutrition brief\",\n  \"actual_use\": true,\n  \"event_date\": \"2026-08-10\",\n  \"attendance_count\": 12\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "List utilization events",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/utilization-events?days=90"
+                  }
+                },
+                {
+                  "name": "Log coverage hours",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/admin/coverage-logs",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"provider_id\": \"REPLACE_WITH_PROVIDER_USER_ID\",\n  \"role\": \"SCS\",\n  \"hours\": 8,\n  \"coverage_date\": \"2026-08-20\",\n  \"is_weekend_rsd\": false\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "List a provider's coverage log",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/coverage-logs/REPLACE_WITH_PROVIDER_USER_ID"
+                  }
+                }
+              ]
+            }
+          ],
+          "description": "Login as dash-admin@ascend.mil or dash-superadmin@ascend.mil. Sidebar tabs: Overview, Roles, Scope, Audit log, Exports, System. Org Units & Provider Ops isn't its own labeled tab in the frontend but is real Admin-only backend functionality with nowhere else to live."
+        },
+        {
+          "name": "Leadership",
+          "item": [
+            {
+              "name": "Index",
+              "item": [
+                {
+                  "name": "Landing hub summary",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/dashboard/leadership"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Aggregate",
+              "item": [
+                {
+                  "name": "Aggregate readiness (composite OPS, drivers, by-flight, risk heatmap, targets)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/dashboard/leadership/aggregate"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Trends",
+              "item": [
+                {
+                  "name": "Trends (7d/30d/3-12mo, band distribution, annotations)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/dashboard/leadership/trends?period=12mo",
+                    "description": "period: 7d | 30d | 3mo | 6mo | 12mo"
+                  }
+                },
+                {
+                  "name": "Create annotation",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/dashboard/leadership/annotations",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"title\": \"Wing PT test week\",\n  \"narrative\": \"Elevated OFT volume this week, expect a dip in check-in completion.\",\n  \"event_date\": \"2026-08-20\",\n  \"unit_id\": null\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "Delete annotation (Admin only)",
+                  "request": {
+                    "method": "DELETE",
+                    "url": "{{base_url}}/dashboard/leadership/annotations/REPLACE_WITH_ANNOTATION_ID"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Reports",
+              "item": [
+                {
+                  "name": "Reports library (recent + schedules)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/dashboard/leadership/reports"
+                  }
+                },
+                {
+                  "name": "Report templates (Wing Weekly/Monthly Cohort/Quarterly OFT/Annual Wing)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/dashboard/leadership/report-templates"
+                  }
+                },
+                {
+                  "name": "Use a report template (creates a real recurring schedule)",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/dashboard/leadership/report-templates/REPLACE_WITH_TEMPLATE_KEY/use"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Briefings",
+              "item": [
+                {
+                  "name": "Briefing templates (Mission Readiness/Recovery Rollout/Quarterly Wing Review)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/dashboard/leadership/briefing-templates"
+                  }
+                },
+                {
+                  "name": "Create briefing",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/dashboard/leadership/briefings",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"title\": \"August Wing Briefing\",\n  \"template_key\": \"mission_readiness\",\n  \"custom_outline\": null\n}"
+                    },
+                    "description": "Genuinely slow (30-60s+) - it generates real AI prose per section sequentially. Set your Postman request timeout higher than the 25s default or it'll look like it failed when it actually succeeded server-side."
+                  }
+                },
+                {
+                  "name": "List briefings",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/dashboard/leadership/briefings"
+                  }
+                },
+                {
+                  "name": "Get briefing (live-regenerates while draft - also slow)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/dashboard/leadership/briefings/REPLACE_WITH_BRIEFING_ID"
+                  }
+                },
+                {
+                  "name": "Update briefing outline (draft only)",
+                  "request": {
+                    "method": "PATCH",
+                    "url": "{{base_url}}/dashboard/leadership/briefings/REPLACE_WITH_BRIEFING_ID",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"outline\": [\n    {\n      \"section_key\": \"summary\",\n      \"title\": \"Executive Summary\"\n    }\n  ]\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "Send briefing (freezes content)",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/dashboard/leadership/briefings/REPLACE_WITH_BRIEFING_ID/send"
+                  }
+                },
+                {
+                  "name": "Download briefing PDF",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/dashboard/leadership/briefings/REPLACE_WITH_BRIEFING_ID/pdf"
+                  }
+                }
+              ]
+            }
+          ],
+          "description": "Login as dash-leadership@ascend.mil (or an Admin/Superadmin account - they share the same LEADERSHIP_ROLES gate). Sidebar tabs: Index, Aggregate, Trends, Reports, Briefings."
+        },
+        {
+          "name": "SCS",
+          "item": [
+            {
+              "name": "Overview / Dashboard",
+              "item": [
+                {
+                  "name": "SCS dashboard (assigned-operator queue, check-ins, OPS, driver flags, workouts, OFT, reconditioning)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/dashboard/scs"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "People (roster + person-detail drill-in)",
+              "item": [
+                {
+                  "name": "Roster (same as Dashboard - People is a view over the same row data)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/dashboard/scs"
+                  }
+                },
+                {
+                  "name": "Person detail - active recommendations",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/recommendations/active"
+                  }
+                },
+                {
+                  "name": "Person detail - recent workouts",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/workouts"
+                  }
+                },
+                {
+                  "name": "Person detail - workout summary",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/workouts/summary"
+                  }
+                },
+                {
+                  "name": "Person detail - OFT record",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/oft/REPLACE_WITH_USER_ID"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Plans",
+              "item": [
+                {
+                  "name": "Assign an action/recommendation",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/recommendations/REPLACE_WITH_USER_ID/assign",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"readiness_component\": \"Physical Readiness\",\n  \"assigned_provider_name\": \"SSgt Coach\",\n  \"assigned_provider_role\": \"SCS\",\n  \"title\": \"3x/week mobility block\",\n  \"instructions\": \"Add 15 min mobility work before each session.\",\n  \"steps\": [\n    {\n      \"title\": \"Week 1\",\n      \"description\": \"Baseline mobility screen\"\n    }\n  ],\n  \"follow_up_timeline\": \"Next check-in\",\n  \"is_joint_coordination\": false\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "Update/create reconditioning plan",
+                  "request": {
+                    "method": "PUT",
+                    "url": "{{base_url}}/records/reconditioning-plan/REPLACE_WITH_USER_ID",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"phase\": \"active\",\n  \"sessions_completed\": 2,\n  \"sessions_total\": 12,\n  \"cadence_note\": \"2x/week\",\n  \"injury_flags\": [\n    \"knee\"\n  ],\n  \"ptim_clearance_status\": \"modified_duty\",\n  \"next_review_date\": \"2026-09-01\",\n  \"limitation_flag\": true,\n  \"rehab_strategy_summary\": \"Progressive loading, avoid deep flexion.\",\n  \"scs_coordination_status\": \"pending\",\n  \"severity_level\": \"L2\",\n  \"injury_reported_on\": \"2026-08-01\"\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "View reconditioning timeline",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/records/reconditioning-plan/REPLACE_WITH_USER_ID/timeline"
+                  }
+                },
+                {
+                  "name": "View/add restrictions",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/records/reconditioning-plan/REPLACE_WITH_USER_ID/restrictions"
+                  }
+                },
+                {
+                  "name": "Add restriction",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/records/reconditioning-plan/REPLACE_WITH_USER_ID/restrictions",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"description\": \"No heavy lifting > 80% 1RM\",\n  \"required_phase\": \"maintenance\"\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "Release restriction",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/records/reconditioning-plan/restrictions/REPLACE_WITH_RESTRICTION_ID/release",
+                    "description": "400s until the plan's phase has genuinely reached required_phase - that's the real gate, not a bug."
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Coverage",
+              "item": [
+                {
+                  "name": "Log coverage hours",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/admin/coverage-logs",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"provider_id\": \"REPLACE_WITH_PROVIDER_USER_ID\",\n  \"role\": \"SCS\",\n  \"hours\": 8,\n  \"coverage_date\": \"2026-08-20\",\n  \"is_weekend_rsd\": false\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "List a provider's coverage log",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/coverage-logs/REPLACE_WITH_PROVIDER_USER_ID"
+                  }
+                },
+                {
+                  "name": "Workload by flight - reconditioning/rehab caseload (k-gated)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/coverage/reconditioning-load-by-flight",
+                    "description": "'OFT lanes covered', 'Capacity', and the SCS availability heatmap columns shown in the frontend mock are deliberately not built - no real data source exists for them (documented decision, not a missing endpoint)."
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Performance Summary (scoped view)",
+              "item": [
+                {
+                  "name": "Read summaries (SCS sees 'approved limits + RTP guidance')",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/performance-summaries/REPLACE_WITH_USER_ID",
+                    "description": "Read-only. Per DOCX Table 23 this role receives limitations_summary + return_to_performance_considerations only; everything else is null and named in `withheld_fields`."
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Messages",
+              "item": [
+                {
+                  "name": "Routing levels",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/routing-levels"
+                  }
+                },
+                {
+                  "name": "Send message",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/messaging/send",
+                    "body": {
+                      "mode": "formdata",
+                      "formdata": [
+                        {
+                          "key": "recipient_id",
+                          "value": "REPLACE_WITH_USER_ID",
+                          "type": "text"
+                        },
+                        {
+                          "key": "body",
+                          "value": "Testing from Postman",
+                          "type": "text"
+                        },
+                        {
+                          "key": "related_recommendation_id",
+                          "value": "",
+                          "type": "text"
+                        },
+                        {
+                          "key": "file",
+                          "type": "file",
+                          "src": ""
+                        }
+                      ]
+                    },
+                    "description": "Multipart form, not JSON - optional file attachment. Leave 'file' empty to send without one. Requires a real TeamAssignment link between sender and recipient or this 403s (correct behavior, not a bug). A blocked send (added 2026-08-24) now returns a real severity (1-5, see OPSEC_TERM_SEVERITY in app/core/notification_rules.py) and writes a real message_blocked_opsec audit entry - previously blocked attempts left no audit trail at all. Every severity still blocks the send (this did not loosen the existing behavior) - severity is real added metadata for audit granularity, matching the mobile app's own 'Level 5 (highest) never routes through messaging' description, which had no backing before this."
+                  }
+                },
+                {
+                  "name": "Scan preview (OPSEC check)",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/messaging/scan",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"body\": \"Check this message for blocked terms before sending\"\n}"
+                    },
+                    "description": "Response now includes a real severity (1-5, null if no terms matched) alongside blocked_terms - added 2026-08-24."
+                  }
+                },
+                {
+                  "name": "Threads",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/threads"
+                  }
+                },
+                {
+                  "name": "Thread with user",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/thread/REPLACE_WITH_OTHER_USER_ID"
+                  }
+                },
+                {
+                  "name": "Message trace",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/message/REPLACE_WITH_MESSAGE_ID/trace"
+                  }
+                },
+                {
+                  "name": "Create group thread",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/messaging/group-threads",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"participant_ids\": [\n    \"REPLACE_WITH_USER_ID_1\",\n    \"REPLACE_WITH_USER_ID_2\"\n  ],\n  \"title\": \"Care team\"\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "Send group message",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/messaging/group-threads/REPLACE_WITH_THREAD_ID/send",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"body\": \"Testing from Postman\"\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "List group threads",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/group-threads"
+                  }
+                },
+                {
+                  "name": "Get group thread",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/group-threads/REPLACE_WITH_THREAD_ID"
+                  }
+                }
+              ]
+            }
+          ],
+          "description": "Login as dash-scs@ascend.mil. Sidebar tabs: Overview, Dashboard, People, Plans, Coverage, Messages."
+        },
+        {
+          "name": "PT-IM",
+          "item": [
+            {
+              "name": "Dashboard",
+              "item": [
+                {
+                  "name": "PT/IM dashboard (reconditioning phase, clearance, injury flags, pending record reviews)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/dashboard/ptim"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Injury queue",
+              "item": [
+                {
+                  "name": "Injury queue (same dashboard row data)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/dashboard/ptim"
+                  }
+                },
+                {
+                  "name": "Update injury/reconditioning fields for one operator",
+                  "request": {
+                    "method": "PUT",
+                    "url": "{{base_url}}/records/reconditioning-plan/REPLACE_WITH_USER_ID",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"phase\": \"active\",\n  \"sessions_completed\": 2,\n  \"sessions_total\": 12,\n  \"cadence_note\": \"2x/week\",\n  \"injury_flags\": [\n    \"knee\"\n  ],\n  \"ptim_clearance_status\": \"modified_duty\",\n  \"next_review_date\": \"2026-09-01\",\n  \"limitation_flag\": true,\n  \"rehab_strategy_summary\": \"Progressive loading, avoid deep flexion.\",\n  \"scs_coordination_status\": \"pending\",\n  \"severity_level\": \"L2\",\n  \"injury_reported_on\": \"2026-08-01\"\n}"
+                    },
+                    "description": "severity_level: L1-L4, injury_reported_on drives the derived days_out field. Diagnosis/ICD-style codes are deliberately not built (no DOCX anchor)."
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Medical Records",
+              "item": [
+                {
+                  "name": "List uploaded records",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/records/uploads?document_type=all"
+                  }
+                },
+                {
+                  "name": "Record detail (access log)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/records/uploads/REPLACE_WITH_RECORD_ID"
+                  }
+                },
+                {
+                  "name": "Download record file",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/records/uploads/REPLACE_WITH_RECORD_ID/file"
+                  }
+                },
+                {
+                  "name": "Review a record (approve/deny)",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/records/uploads/REPLACE_WITH_RECORD_ID/review",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"note\": \"Reviewed, no concerns.\",\n  \"approve\": true\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "Update access level (widen a role's access)",
+                  "request": {
+                    "method": "PATCH",
+                    "url": "{{base_url}}/records/uploads/REPLACE_WITH_RECORD_ID/access-level",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"approved_access_level\": [\n    \"SCS\",\n    \"PT/IM\"\n  ]\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "Reveal a masked field (reason-required)",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/records/uploads/REPLACE_WITH_RECORD_ID/reveal-field",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"field_name\": \"file_name\",\n  \"reason\": \"Escalation review requested by SCS lead\",\n  \"reason_category\": \"escalation\"\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "ROM measurements - view",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/records/reconditioning-plan/REPLACE_WITH_USER_ID/rom-measurements"
+                  }
+                },
+                {
+                  "name": "ROM measurements - add",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/records/reconditioning-plan/REPLACE_WITH_USER_ID/rom-measurements",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"movement\": \"knee_flexion\",\n  \"value_degrees\": 110,\n  \"measured_date\": \"2026-08-20\",\n  \"note\": \"Improving\"\n}"
+                    },
+                    "description": "movement: shoulder_flexion|shoulder_abduction|knee_flexion|hip_flexion|straight_leg_raise|other."
+                  }
+                },
+                {
+                  "name": "Treatment-plan timeline",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/records/reconditioning-plan/REPLACE_WITH_USER_ID/timeline"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Performance Summary (Medical History)",
+              "item": [
+                {
+                  "name": "Author a performance summary",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/performance-summaries/REPLACE_WITH_USER_ID",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"injury_history_summary\": \"Prior L knee meniscus repair, 2024.\",\n  \"limitations_summary\": \"No deep flexion past 90 degrees under load.\",\n  \"return_to_performance_considerations\": \"Progress to full squat over 6 weeks.\",\n  \"nutrition_considerations\": \"Increase protein to support tissue repair.\",\n  \"sleep_recovery_considerations\": \"Prioritise 7h+ on training days.\",\n  \"medication_allergy_considerations_if_authorized\": \"NSAID sensitivity.\",\n  \"specialist_notes_link\": []\n}"
+                    },
+                    "description": "DOCX: translate uploaded medical history into performance guidance 'without exposing unnecessary raw medical details'. PT/IM or Admin only. Starts at approved_visibility_level 'draft' - while draft, only PT/IM sees any content (Admin included in that restriction, since DOCX Table 23's Admin cell is 'Metadata; content only if approved')."
+                  }
+                },
+                {
+                  "name": "Read summaries (role-scoped)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/performance-summaries/REPLACE_WITH_USER_ID",
+                    "description": "Every caller gets metadata; content fields are scoped to that role's DOCX Table 23 cell. PT/IM 'Yes' = all; SCS 'Approved limits + RTP guidance' = limitations + RTP; Nutritionist 'Relevant nutrition/recovery only'; Mental Performance 'Relevant stress/sleep/recovery only'; Chaplain and Leadership metadata only; the operator sees their own but never the medication/allergy field. A `withheld_fields` array names what was deliberately withheld, so a null is never ambiguous between 'absent' and 'not for you'."
+                  }
+                },
+                {
+                  "name": "Set visibility level",
+                  "request": {
+                    "method": "PATCH",
+                    "url": "{{base_url}}/performance-summaries/REPLACE_WITH_SUMMARY_ID/visibility",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"approved_visibility_level\": \"approved\"\n}"
+                    },
+                    "description": "draft | approved | approved_with_medical. The medication_allergy_considerations_if_authorized field stays withheld from everyone until 'approved_with_medical' - the DOCX field name's own '_if_authorized' suffix is the rule. Audit logged."
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Quarterly",
+              "item": [
+                {
+                  "name": "Quarterly injury/recovery report",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/reports/injury"
+                  }
+                },
+                {
+                  "name": "Export quarterly injury report (CSV/PDF)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/reports/injury/export?date_range=current&export_format=csv",
+                    "description": "Restricted-sensitivity - returns 202 pending-approval, needs a different Admin to approve via /admin/confirmations before download."
+                  }
+                }
+              ]
+            },
+            {
+              "name": "SCS coordination",
+              "item": [
+                {
+                  "name": "Send a joint-coordination recommendation for signoff",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/recommendations/REPLACE_WITH_RECOMMENDATION_ID/send-for-signoff",
+                    "description": "Only valid on a recommendation created with is_joint_coordination: true - 400s otherwise."
+                  }
+                },
+                {
+                  "name": "Sign off (PT/IM)",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/recommendations/REPLACE_WITH_RECOMMENDATION_ID/sign-off"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "IDMT handoff",
+              "item": [
+                {
+                  "name": "Prepare handoff (pending 2nd-reviewer approval)",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/admin/idmt-handoffs",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"user_id\": \"REPLACE_WITH_USER_ID\",\n  \"export_type\": \"reconditioning_summary\",\n  \"export_format\": \"pdf\"\n}"
+                    },
+                    "description": "export_type: injury_summary | reconditioning_summary | medical_record_summary. export_format: pdf | csv | mfr_summary."
+                  }
+                },
+                {
+                  "name": "List handoffs",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/idmt-handoffs"
+                  }
+                },
+                {
+                  "name": "Mark transmitted",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/admin/idmt-handoffs/REPLACE_WITH_HANDOFF_ID/transmit"
+                  }
+                },
+                {
+                  "name": "Download handoff summary",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/idmt-handoffs/REPLACE_WITH_HANDOFF_ID/download"
+                  }
+                }
+              ]
+            }
+          ],
+          "description": "Login as dash-ptim@ascend.mil. Sidebar tabs: Dashboard, Injury queue, Medical Records, Quarterly, SCS coordination, IDMT handoff."
+        },
+        {
+          "name": "Mental Performance",
+          "item": [
+            {
+              "name": "Dashboard",
+              "item": [
+                {
+                  "name": "Specialist dashboard (Mental Performance)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/dashboard/specialist"
+                  }
+                },
+                {
+                  "name": "Caseload / routing (support requests assigned to me)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/support/requests/assigned"
+                  }
+                },
+                {
+                  "name": "My team",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/support/team"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Notes",
+              "item": [
+                {
+                  "name": "Create a note",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/specialist-notes/REPLACE_WITH_USER_ID",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"user_concern\": \"Reports difficulty sleeping before duty days\",\n  \"action_assigned\": \"Sleep hygiene worksheet + follow-up in 2 weeks\",\n  \"follow_up_needed\": true\n}"
+                    },
+                    "description": "This is the real, DOCX Section 17 lightweight coaching note - not a formal SOAP note with risk grading, which remains deliberately un-built (no DOCX anchor for formal clinical documentation)."
+                  }
+                },
+                {
+                  "name": "List notes for a user (siloed to Mental Performance; Admin sees all)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/specialist-notes/REPLACE_WITH_USER_ID"
+                  }
+                },
+                {
+                  "name": "Update note status",
+                  "request": {
+                    "method": "PATCH",
+                    "url": "{{base_url}}/specialist-notes/REPLACE_WITH_NOTE_ID/status",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"status\": \"closed\"\n}"
+                    },
+                    "description": "Only the authoring specialist or an Admin can update - others get 403."
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Records",
+              "item": [
+                {
+                  "name": "List records for a user",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/records/uploads?document_type=all"
+                  }
+                },
+                {
+                  "name": "Record detail (masked fields for non-clinical roles)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/records/uploads/REPLACE_WITH_RECORD_ID"
+                  }
+                },
+                {
+                  "name": "Reveal a masked field (reason-required)",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/records/uploads/REPLACE_WITH_RECORD_ID/reveal-field",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"field_name\": \"file_name\",\n  \"reason\": \"Escalation review requested\",\n  \"reason_category\": \"escalation\"\n}"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Performance Summary (scoped view)",
+              "item": [
+                {
+                  "name": "Read summaries (Mental Performance sees 'relevant stress/sleep/recovery only')",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/performance-summaries/REPLACE_WITH_USER_ID",
+                    "description": "Read-only. Per DOCX Table 23 this role receives sleep_recovery_considerations only; every other content field comes back null and is named in `withheld_fields`. Nothing is visible at all while the summary is still a draft."
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Messages",
+              "item": [
+                {
+                  "name": "Routing levels",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/routing-levels"
+                  }
+                },
+                {
+                  "name": "Send message",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/messaging/send",
+                    "body": {
+                      "mode": "formdata",
+                      "formdata": [
+                        {
+                          "key": "recipient_id",
+                          "value": "REPLACE_WITH_USER_ID",
+                          "type": "text"
+                        },
+                        {
+                          "key": "body",
+                          "value": "Testing from Postman",
+                          "type": "text"
+                        },
+                        {
+                          "key": "related_recommendation_id",
+                          "value": "",
+                          "type": "text"
+                        },
+                        {
+                          "key": "file",
+                          "type": "file",
+                          "src": ""
+                        }
+                      ]
+                    },
+                    "description": "Multipart form, not JSON - optional file attachment. Leave 'file' empty to send without one. Requires a real TeamAssignment link between sender and recipient or this 403s (correct behavior, not a bug). A blocked send (added 2026-08-24) now returns a real severity (1-5, see OPSEC_TERM_SEVERITY in app/core/notification_rules.py) and writes a real message_blocked_opsec audit entry - previously blocked attempts left no audit trail at all. Every severity still blocks the send (this did not loosen the existing behavior) - severity is real added metadata for audit granularity, matching the mobile app's own 'Level 5 (highest) never routes through messaging' description, which had no backing before this."
+                  }
+                },
+                {
+                  "name": "Scan preview (OPSEC check)",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/messaging/scan",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"body\": \"Check this message for blocked terms before sending\"\n}"
+                    },
+                    "description": "Response now includes a real severity (1-5, null if no terms matched) alongside blocked_terms - added 2026-08-24."
+                  }
+                },
+                {
+                  "name": "Threads",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/threads"
+                  }
+                },
+                {
+                  "name": "Thread with user",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/thread/REPLACE_WITH_OTHER_USER_ID"
+                  }
+                },
+                {
+                  "name": "Message trace",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/message/REPLACE_WITH_MESSAGE_ID/trace"
+                  }
+                },
+                {
+                  "name": "Create group thread",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/messaging/group-threads",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"participant_ids\": [\n    \"REPLACE_WITH_USER_ID_1\",\n    \"REPLACE_WITH_USER_ID_2\"\n  ],\n  \"title\": \"Care team\"\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "Send group message",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/messaging/group-threads/REPLACE_WITH_THREAD_ID/send",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"body\": \"Testing from Postman\"\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "List group threads",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/group-threads"
+                  }
+                },
+                {
+                  "name": "Get group thread",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/group-threads/REPLACE_WITH_THREAD_ID"
+                  }
+                }
+              ]
+            }
+          ],
+          "description": "Login as dash-mp@ascend.mil. Sidebar tabs: Dashboard, Notes, Records, Messages."
+        },
+        {
+          "name": "Nutritionist",
+          "item": [
+            {
+              "name": "Dashboard",
+              "item": [
+                {
+                  "name": "Specialist dashboard (includes nutrition_signals: meal-consistency/hydration trend)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/dashboard/specialist"
+                  }
+                },
+                {
+                  "name": "Caseload / routing",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/support/requests/assigned"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Consults",
+              "item": [
+                {
+                  "name": "Assigned support requests (closest real backing for 'consults' - no dedicated scheduled-consult concept exists)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/support/requests/assigned"
+                  }
+                },
+                {
+                  "name": "Update request status",
+                  "request": {
+                    "method": "PATCH",
+                    "url": "{{base_url}}/support/requests/REPLACE_WITH_REQUEST_ID/status",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"status\": \"in_progress\"\n}"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Records",
+              "item": [
+                {
+                  "name": "List records for a user",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/records/uploads?document_type=all"
+                  }
+                },
+                {
+                  "name": "Record detail",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/records/uploads/REPLACE_WITH_RECORD_ID"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Notes (shown on frontend Dashboard, not a separate tab)",
+              "item": [
+                {
+                  "name": "Create a note",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/specialist-notes/REPLACE_WITH_USER_ID",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"user_concern\": \"Inconsistent meal timing on duty days\",\n  \"action_assigned\": \"Meal-prep guide\",\n  \"follow_up_needed\": true\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "List notes for a user",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/specialist-notes/REPLACE_WITH_USER_ID"
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Performance Summary (scoped view)",
+              "item": [
+                {
+                  "name": "Read summaries (Nutritionist sees 'relevant nutrition/recovery only')",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/performance-summaries/REPLACE_WITH_USER_ID",
+                    "description": "Read-only. Per DOCX Table 23 this role receives nutrition_considerations + sleep_recovery_considerations only; everything else is null and named in `withheld_fields`."
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Messages",
+              "item": [
+                {
+                  "name": "Routing levels",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/routing-levels"
+                  }
+                },
+                {
+                  "name": "Send message",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/messaging/send",
+                    "body": {
+                      "mode": "formdata",
+                      "formdata": [
+                        {
+                          "key": "recipient_id",
+                          "value": "REPLACE_WITH_USER_ID",
+                          "type": "text"
+                        },
+                        {
+                          "key": "body",
+                          "value": "Testing from Postman",
+                          "type": "text"
+                        },
+                        {
+                          "key": "related_recommendation_id",
+                          "value": "",
+                          "type": "text"
+                        },
+                        {
+                          "key": "file",
+                          "type": "file",
+                          "src": ""
+                        }
+                      ]
+                    },
+                    "description": "Multipart form, not JSON - optional file attachment. Leave 'file' empty to send without one. Requires a real TeamAssignment link between sender and recipient or this 403s (correct behavior, not a bug). A blocked send (added 2026-08-24) now returns a real severity (1-5, see OPSEC_TERM_SEVERITY in app/core/notification_rules.py) and writes a real message_blocked_opsec audit entry - previously blocked attempts left no audit trail at all. Every severity still blocks the send (this did not loosen the existing behavior) - severity is real added metadata for audit granularity, matching the mobile app's own 'Level 5 (highest) never routes through messaging' description, which had no backing before this."
+                  }
+                },
+                {
+                  "name": "Scan preview (OPSEC check)",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/messaging/scan",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"body\": \"Check this message for blocked terms before sending\"\n}"
+                    },
+                    "description": "Response now includes a real severity (1-5, null if no terms matched) alongside blocked_terms - added 2026-08-24."
+                  }
+                },
+                {
+                  "name": "Threads",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/threads"
+                  }
+                },
+                {
+                  "name": "Thread with user",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/thread/REPLACE_WITH_OTHER_USER_ID"
+                  }
+                },
+                {
+                  "name": "Message trace",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/message/REPLACE_WITH_MESSAGE_ID/trace"
+                  }
+                },
+                {
+                  "name": "Create group thread",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/messaging/group-threads",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"participant_ids\": [\n    \"REPLACE_WITH_USER_ID_1\",\n    \"REPLACE_WITH_USER_ID_2\"\n  ],\n  \"title\": \"Care team\"\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "Send group message",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/messaging/group-threads/REPLACE_WITH_THREAD_ID/send",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"body\": \"Testing from Postman\"\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "List group threads",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/group-threads"
+                  }
+                },
+                {
+                  "name": "Get group thread",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/group-threads/REPLACE_WITH_THREAD_ID"
+                  }
+                }
+              ]
+            }
+          ],
+          "description": "Login as dash-nutritionist@ascend.mil. Sidebar tabs: Dashboard, Consults, Records, Messages. Macro/calorie/food-log tracking is deliberately not built (no DOCX anchor) - the real, DOCX-grounded meal-consistency trend was built instead, surfaced on Dashboard."
+        },
+        {
+          "name": "Chaplain (Purpose Coach)",
+          "item": [
+            {
+              "name": "Caseload",
+              "item": [
+                {
+                  "name": "Specialist dashboard",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/dashboard/specialist"
+                  }
+                },
+                {
+                  "name": "My team (opt-in date, cadence, last contact)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/support/team"
+                  }
+                },
+                {
+                  "name": "Toggle opt-in pathway",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/support/team/Chaplain/toggle",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"enabled\": true\n}"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Reflections",
+              "item": [
+                {
+                  "name": "Create a note (real backing - lightweight coaching note, not a reflection-entry journal)",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/specialist-notes/REPLACE_WITH_USER_ID",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"user_concern\": \"Struggling with deployment-related isolation\",\n  \"action_assigned\": \"Weekly check-in scheduled\",\n  \"follow_up_needed\": true\n}"
+                    },
+                    "description": "Spiritual reflection entries (the operator's own quoted content) and formal pastoral clinical documentation are both deliberately not built - no DOCX anchor for either. This DOCX Section 17 note is the real, closest thing that exists."
+                  }
+                },
+                {
+                  "name": "List notes for a user",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/specialist-notes/REPLACE_WITH_USER_ID"
+                  }
+                },
+                {
+                  "name": "Update note status",
+                  "request": {
+                    "method": "PATCH",
+                    "url": "{{base_url}}/specialist-notes/REPLACE_WITH_NOTE_ID/status",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"status\": \"closed\"\n}"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "name": "Messages",
+              "item": [
+                {
+                  "name": "Routing levels",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/routing-levels"
+                  }
+                },
+                {
+                  "name": "Send message",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/messaging/send",
+                    "body": {
+                      "mode": "formdata",
+                      "formdata": [
+                        {
+                          "key": "recipient_id",
+                          "value": "REPLACE_WITH_USER_ID",
+                          "type": "text"
+                        },
+                        {
+                          "key": "body",
+                          "value": "Testing from Postman",
+                          "type": "text"
+                        },
+                        {
+                          "key": "related_recommendation_id",
+                          "value": "",
+                          "type": "text"
+                        },
+                        {
+                          "key": "file",
+                          "type": "file",
+                          "src": ""
+                        }
+                      ]
+                    },
+                    "description": "Multipart form, not JSON - optional file attachment. Leave 'file' empty to send without one. Requires a real TeamAssignment link between sender and recipient or this 403s (correct behavior, not a bug). A blocked send (added 2026-08-24) now returns a real severity (1-5, see OPSEC_TERM_SEVERITY in app/core/notification_rules.py) and writes a real message_blocked_opsec audit entry - previously blocked attempts left no audit trail at all. Every severity still blocks the send (this did not loosen the existing behavior) - severity is real added metadata for audit granularity, matching the mobile app's own 'Level 5 (highest) never routes through messaging' description, which had no backing before this."
+                  }
+                },
+                {
+                  "name": "Scan preview (OPSEC check)",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/messaging/scan",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"body\": \"Check this message for blocked terms before sending\"\n}"
+                    },
+                    "description": "Response now includes a real severity (1-5, null if no terms matched) alongside blocked_terms - added 2026-08-24."
+                  }
+                },
+                {
+                  "name": "Threads",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/threads"
+                  }
+                },
+                {
+                  "name": "Thread with user",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/thread/REPLACE_WITH_OTHER_USER_ID"
+                  }
+                },
+                {
+                  "name": "Message trace",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/message/REPLACE_WITH_MESSAGE_ID/trace"
+                  }
+                },
+                {
+                  "name": "Create group thread",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/messaging/group-threads",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"participant_ids\": [\n    \"REPLACE_WITH_USER_ID_1\",\n    \"REPLACE_WITH_USER_ID_2\"\n  ],\n  \"title\": \"Care team\"\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "Send group message",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/messaging/group-threads/REPLACE_WITH_THREAD_ID/send",
+                    "header": [
+                      {
+                        "key": "Content-Type",
+                        "value": "application/json"
+                      }
+                    ],
+                    "body": {
+                      "mode": "raw",
+                      "raw": "{\n  \"body\": \"Testing from Postman\"\n}"
+                    }
+                  }
+                },
+                {
+                  "name": "List group threads",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/group-threads"
+                  }
+                },
+                {
+                  "name": "Get group thread",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/messaging/group-threads/REPLACE_WITH_THREAD_ID"
+                  }
+                }
+              ]
+            }
+          ],
+          "description": "Login as dash-chaplain@ascend.mil. Sidebar tabs: Caseload, Reflections, Messages."
+        },
+        {
+          "name": "IDMT",
+          "item": [
+            {
+              "name": "Handoffs",
+              "item": [
+                {
+                  "name": "List handoffs (only transmitted/acknowledged)",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/idmt-handoffs"
+                  }
+                },
+                {
+                  "name": "Acknowledge receipt",
+                  "request": {
+                    "method": "POST",
+                    "url": "{{base_url}}/admin/idmt-handoffs/REPLACE_WITH_HANDOFF_ID/acknowledge"
+                  }
+                },
+                {
+                  "name": "Download handoff summary",
+                  "request": {
+                    "method": "GET",
+                    "url": "{{base_url}}/admin/idmt-handoffs/REPLACE_WITH_HANDOFF_ID/download"
+                  }
+                }
+              ]
+            }
+          ],
+          "description": "Login as dash-idmt@ascend.mil. Not a tabbed dashboard in ascend-admin - IDMT only receives/acknowledges handoffs PT/IM prepares and Admin approves."
+        }
+      ],
+      "description": "Staff-facing surface, organized to match ascend-admin's real per-role sidebar structure: one folder per role, one sub-folder per that role's real sidebar tab/page, containing the real endpoint(s) that page calls. Uses admin_access_token/admin_refresh_token. Log in once via 'Auth (staff login)' with whichever role's credentials you need (dash-<role>@ascend.mil / AscendDash!2026), then work within that role's folder - a 403 means the logged-in account's role doesn't have that permission, not a bug. `Plan` and `mt` pages exist in the frontend but have zero real backend (explicit decision to skip - no DOCX requirement found) so they're not represented here.",
+      "auth": {
+        "type": "bearer",
+        "bearer": [
+          {
+            "key": "token",
+            "value": "{{admin_access_token}}",
+            "type": "string"
+          }
+        ]
+      }
+    }
+  ]
+}

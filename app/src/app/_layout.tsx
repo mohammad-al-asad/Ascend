@@ -1,4 +1,4 @@
-import { Stack, useRouter, useSegments } from "expo-router";
+import { Stack } from "expo-router";
 import { Host } from "@expo/ui";
 import { Provider } from "react-redux";
 import { store, useAppSelector, useAppDispatch } from "../redux/store";
@@ -9,8 +9,6 @@ import { setCredentials, setAuthLoading } from "../redux/slices/authSlice";
 
 function AppNavigator() {
   const dispatch = useAppDispatch();
-  const router = useRouter();
-  const segments = useSegments();
   const { isAuthenticated, user, isAuthLoading } = useAppSelector((state) => state.auth);
 
   useEffect(() => {
@@ -40,23 +38,6 @@ function AppNavigator() {
     hydrateAuth();
   }, [dispatch]);
 
-  useEffect(() => {
-    if (!isAuthLoading) {
-      const inAuthGroup = segments[0] === "auth";
-      if (!isAuthenticated && !inAuthGroup) {
-        // Redirect to sign-in if unauthenticated and not on an auth screen
-        router.replace("/auth/signin" as any);
-      } else if (isAuthenticated && inAuthGroup) {
-        // Redirect to home if authenticated but trying to access auth screens
-        if (!user?.onboarding_completed) {
-          router.replace("/onboarding" as any);
-        } else {
-          router.replace("/(tabs)/(home)" as any);
-        }
-      }
-    }
-  }, [isAuthenticated, isAuthLoading, segments, user?.onboarding_completed]);
-
   if (isAuthLoading) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#0F0F12" }}>
@@ -65,13 +46,27 @@ function AppNavigator() {
     );
   }
 
+  const hasCompletedOnboarding = Boolean(user?.onboarding_completed);  
+
   return (
     <Host style={{ flex: 1 }}>
       <Stack screenOptions={{ headerShown: false }}>
-        {/* We expose all screens and handle redirects in individual screens or hooks */}
-        <Stack.Screen name="auth" />
-        <Stack.Screen name="onboarding" />
-        <Stack.Screen name="(tabs)" />
+        {/* Unauthenticated Routes */}
+        <Stack.Protected guard={!isAuthenticated}>
+          <Stack.Screen name="auth" />
+        </Stack.Protected>
+
+        {/* Authenticated Onboarding Flow */}
+        <Stack.Protected guard={isAuthenticated && !hasCompletedOnboarding}>
+          <Stack.Screen name="onboarding" />
+        </Stack.Protected>
+
+        {/* Authenticated Main App Flow */}
+        <Stack.Protected guard={isAuthenticated && hasCompletedOnboarding}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="checkin" />
+          <Stack.Screen name="notifications" />
+        </Stack.Protected>
       </Stack>
     </Host>
   );
@@ -84,3 +79,4 @@ export default function RootLayout() {
     </Provider>
   );
 }
+

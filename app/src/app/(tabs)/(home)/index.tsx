@@ -1,5 +1,13 @@
-import React from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Pressable,
+  RefreshControl,
+  ActivityIndicator,
+} from "react-native";
 import { useRouter } from "expo-router";
 import { useAppSelector } from "../../../redux/store";
 import { useTheme } from "../../../utils/useTheme";
@@ -9,42 +17,81 @@ import { CustomBottomSheet } from "../../../components/ui/CustomBottomSheet";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Svg, { Polygon, Line, Text as SvgText, Path } from "react-native-svg";
+import {
+  useGetHomeDashboardQuery,
+  useGetWeeklyCheckinGateQuery,
+  useGetDriverDetailQuery,
+  DriverTrend,
+  SupportPreviewItem,
+  UpcomingItem,
+} from "../../../redux/api/checkinApi";
+
+const DRIVER_COLORS: Record<string, string> = {
+  "Physical Readiness": "#00A3C4",
+  "Sleep Readiness": "#8B5CF6",
+  "Mental Performance": "#3B82F6",
+  "Nutritional Readiness": "#10B981",
+  "Spiritual Readiness": "#F59E0B",
+};
+
+const DRIVER_SHORT_NAMES: Record<string, string> = {
+  "Physical Readiness": "Physical",
+  "Sleep Readiness": "Sleep",
+  "Mental Performance": "Mental",
+  "Nutritional Readiness": "Nutritional",
+  "Spiritual Readiness": "Spiritual",
+};
 
 export default function DashboardScreen() {
   const theme = useTheme();
   const router = useRouter();
 
-  // Retrieve user & onboarding details from state
+  // Retrieve user & auth state from Redux
   const user = useAppSelector((state) => state.auth.user);
-  const answers = useAppSelector((state) => state.auth.onboardingAnswers);
+  const { last_monthly_submission, monthly_cadence_start_date } = useAppSelector(
+    (state) => state.checkin
+  );
 
-  const [isDetailSheetVisible, setIsDetailSheetVisible] = React.useState(false);
+  // RTK Query queries
+  const {
+    data: homeData,
+    refetch,
+    isFetching,
+  } = useGetHomeDashboardQuery(undefined, {
+    pollingInterval: 60000,
+  });
+  const { data: weeklyGate } = useGetWeeklyCheckinGateQuery();
 
+  // Detail Sheet State
+  const [isDetailSheetVisible, setIsDetailSheetVisible] = useState(false);
+  const [selectedDriver, setSelectedDriver] = useState<string>("Physical Readiness");
+  const { data: driverDetail, isFetching: isDriverLoading } = useGetDriverDetailQuery(
+    selectedDriver,
+    {
+      skip: !isDetailSheetVisible,
+    }
+  );
 
-  // Helper to calculate mock readiness index based on actual onboarding responses
-  const getReadinessScore = () => {
-    let score = 78; // baseline shown in mockup
-    if (answers[1] === "Peak") score += 8;
-    else if (answers[1] === "Ready") score += 4;
-    else if (answers[1] === "Below standard") score -= 12;
+  // Readiness Score & Ops data
+  const opsScore = homeData?.current_ops?.ops_score ?? (user?.current_ops_score || 78);
+  const opsBand = homeData?.current_ops?.ops_band ?? (user?.current_ops_band || "Ready");
+  const confidenceLevel =
+    homeData?.current_ops?.confidence_level ??
+    (user?.ops_confidence_level || "Medium confidence");
+  const trendDelta = homeData?.current_ops?.trend_delta;
+  const lastUpdated =
+    homeData?.last_updated_label ||
+    (homeData?.current_ops?.last_updated_at
+      ? `Updated ${new Date(homeData.current_ops.last_updated_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+      : "Updated recently");
 
-    if (answers[8] === "Calm") score += 6;
-    else if (answers[8] === "Overwhelmed") score -= 14;
-
-    if (answers[13] === "7 or more") score += 4;
-    else if (answers[13] === "Less than 4") score -= 10;
-
-    return Math.max(0, Math.min(100, score));
-  };
-
-  const readinessScore = getReadinessScore();
-
-  // Driver metrics (default values from screenshot, customizable by onboarding answers)
-  const physicalVal = answers[1] === "Peak" ? 92 : answers[1] === "Ready" ? 82 : answers[1] === "Below standard" ? 58 : 82;
-  const sleepVal = answers[13] === "7 or more" ? 88 : answers[13] === "Less than 4" ? 54 : 74;
-  const mentalVal = answers[8] === "Calm" ? 84 : answers[8] === "Overwhelmed" ? 52 : 69;
-  const nutritionalVal = answers[4] === "3 structured meals" ? 76 : answers[4] === "Skip meals" ? 48 : 56;
-  const spiritualVal = 84; // default baseline
+  // Component Scores for Pentagon Radar
+  const componentScores = homeData?.component_scores || user?.current_component_scores || {};
+  const physicalVal = componentScores["Physical Readiness"] ?? 82;
+  const sleepVal = componentScores["Sleep Readiness"] ?? 74;
+  const mentalVal = componentScores["Mental Performance"] ?? 69;
+  const nutritionalVal = componentScores["Nutritional Readiness"] ?? 56;
+  const spiritualVal = componentScores["Spiritual Readiness"] ?? 84;
 
   // SVG Radar Chart Constants
   const centerX = 140;
@@ -61,32 +108,267 @@ export default function DashboardScreen() {
 
   // Concentric pentagon points
   const getPentagonPoints = (r: number) => {
-    return angles.map((angle) => {
-      const x = centerX + r * Math.cos(angle);
-      const y = centerY + r * Math.sin(angle);
-      return `${x},${y}`;
-    }).join(" ");
+    return angles
+      .map((angle) => {
+        const x = centerX + r * Math.cos(angle);
+        const y = centerY + r * Math.sin(angle);
+        return `${x},${y}`;
+      })
+      .join(" ");
   };
 
   // Data polygon points
   const values = [physicalVal, sleepVal, mentalVal, nutritionalVal, spiritualVal];
-  const dataPoints = angles.map((angle, i) => {
-    const r = radius * (values[i] / 100);
-    const x = centerX + r * Math.cos(angle);
-    const y = centerY + r * Math.sin(angle);
-    return `${x},${y}`;
-  }).join(" ");
+  const dataPoints = angles
+    .map((angle, i) => {
+      const r = radius * (Math.max(10, Math.min(100, values[i])) / 100);
+      const x = centerX + r * Math.cos(angle);
+      const y = centerY + r * Math.sin(angle);
+      return `${x},${y}`;
+    })
+    .join(" ");
 
   // Custom static dynamic date
   const getFormattedDate = () => {
+    if (homeData?.date_label) return homeData.date_label.toUpperCase();
     const days = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
     const months = [
-      "JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
-      "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"
+      "JANUARY",
+      "FEBRUARY",
+      "MARCH",
+      "APRIL",
+      "MAY",
+      "JUNE",
+      "JULY",
+      "AUGUST",
+      "SEPTEMBER",
+      "OCTOBER",
+      "NOVEMBER",
+      "DECEMBER",
     ];
     const now = new Date();
     return `${days[now.getDay()]} · ${now.getDate()} ${months[now.getMonth()]}`;
   };
+
+  // Check-in Cadence State Resolution
+  const isAlreadyCompletedToday =
+    Boolean(
+      homeData?.todays_checkin?.already_completed_today ??
+      homeData?.todays_checkin?.already_completed
+    );
+  const isWeeklyOpen = weeklyGate ? (!weeklyGate.locked && weeklyGate.days_until_open === 0) : false;
+
+  // Monthly 30-day calculation fallback
+  const isMonthlyOpen = (() => {
+    if (!monthly_cadence_start_date) return false;
+    const now = new Date().getTime();
+    const start = new Date(monthly_cadence_start_date).getTime();
+    const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
+    const currentPeriod = Math.floor((now - start) / THIRTY_DAYS_MS);
+    if (!last_monthly_submission) return currentPeriod >= 1;
+    const lastSub = new Date(last_monthly_submission).getTime();
+    const lastSubPeriod = Math.floor((lastSub - start) / THIRTY_DAYS_MS);
+    return currentPeriod > lastSubPeriod;
+  })();
+
+  const handleStartCheckin = () => {
+    if (isAlreadyCompletedToday) {
+      router.push("/(tabs)/(home)/checkin" as any);
+      return;
+    }
+
+    if (isWeeklyOpen) {
+      router.push("/checkin/weekly" as any);
+    } else if (isMonthlyOpen) {
+      router.push("/checkin/monthly" as any);
+    } else {
+      router.push("/checkin/daily" as any);
+    }
+  };
+
+  const handleOpenDriver = (driverName: string) => {
+    setSelectedDriver(driverName);
+    setIsDetailSheetVisible(true);
+  };
+
+  // Fallback driver list if server array is empty
+  const defaultDrivers: DriverTrend[] = [
+    {
+      readiness_component: "Physical Readiness",
+      signal_label: "Physical",
+      current_score: physicalVal,
+      stale: false,
+      trend_points: [78, 80, 82, 85, physicalVal],
+    },
+    {
+      readiness_component: "Sleep Readiness",
+      signal_label: "Sleep",
+      current_score: sleepVal,
+      stale: false,
+      trend_points: [70, 72, 75, 71, sleepVal],
+    },
+    {
+      readiness_component: "Mental Performance",
+      signal_label: "Mental",
+      current_score: mentalVal,
+      stale: false,
+      trend_points: [65, 68, 67, 70, mentalVal],
+    },
+    {
+      readiness_component: "Nutritional Readiness",
+      signal_label: "Nutritional",
+      current_score: nutritionalVal,
+      stale: false,
+      trend_points: [52, 55, 54, 58, nutritionalVal],
+    },
+    {
+      readiness_component: "Spiritual Readiness",
+      signal_label: "Spiritual",
+      current_score: spiritualVal,
+      stale: false,
+      trend_points: [80, 82, 83, 85, spiritualVal],
+    },
+  ];
+
+  const driverTrends =
+    homeData?.driver_trends && homeData.driver_trends.length > 0
+      ? homeData.driver_trends
+      : defaultDrivers;
+
+  // Fallback support pathways preview
+  const defaultSupportPreview: SupportPreviewItem[] = [
+    {
+      key: "scs",
+      label: "SCS / Coach",
+      description: "Strength & Conditioning",
+      availability_status: "Active",
+    },
+    {
+      key: "pt_im",
+      label: "PT / IM",
+      description: "Physical Therapy & Rehab",
+      availability_status: "Available",
+    },
+    {
+      key: "chaplain",
+      label: "Chaplain",
+      description: "Confidential Spiritual Support",
+      availability_status: "Available",
+    },
+  ];
+
+  const supportPreviewList =
+    homeData?.support_preview && homeData.support_preview.length > 0
+      ? homeData.support_preview
+      : defaultSupportPreview;
+
+  // Fallback upcoming agenda
+  const defaultUpcoming: UpcomingItem[] = [
+    {
+      key: "weekly_checkin",
+      title: "Weekly cadence gate",
+      subtitle: weeklyGate?.locked ? `Opens in ${weeklyGate.days_until_open} days` : "Open now",
+      tag: "Cadence",
+    },
+    {
+      key: "oft",
+      title: "OFT record status",
+      subtitle: "View operator test scores",
+      tag: "Operational",
+    },
+    {
+      key: "initial_assessment",
+      title: "Assessments",
+      subtitle: "Active and completed records",
+      tag: "Program",
+    },
+  ];
+
+  const upcomingList =
+    homeData?.upcoming && homeData.upcoming.length > 0 ? homeData.upcoming : defaultUpcoming;
+
+  // Sparkline generator from numeric trend points
+  const renderSparkline = (points: number[], color: string) => {
+    const width = 90;
+    const height = 20;
+    if (!points || points.length < 2) {
+      return (
+        <Svg width={width} height={height} style={styles.sparkline}>
+          <Path d={`M0,${height / 2} L${width},${height / 2}`} fill="none" stroke={color} strokeWidth="1.5" />
+        </Svg>
+      );
+    }
+    const min = Math.min(...points);
+    const max = Math.max(...points);
+    const range = max - min || 1;
+    const step = width / (points.length - 1);
+
+    const coords = points.map((p, idx) => {
+      const x = idx * step;
+      const y = height - ((p - min) / range) * (height - 6) - 3;
+      return `${x.toFixed(1)},${y.toFixed(1)}`;
+    });
+
+    return (
+      <Svg width={width} height={height} style={styles.sparkline}>
+        <Path
+          d={`M${coords.join(" L")}`}
+          fill="none"
+          stroke={color}
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </Svg>
+    );
+  };
+
+  // Area Chart generator for bottom sheet
+  const renderSheetAreaChart = (points: any[]) => {
+    const width = 320;
+    const height = 75;
+    const numericPoints = (points || [])
+      .map((p) => (typeof p === "object" ? p.score : p))
+      .filter((v) => typeof v === "number");
+
+    if (numericPoints.length < 2) {
+      return (
+        <Svg viewBox={`0 0 ${width} ${height}`} style={styles.sheetChartSvg}>
+          <Path d={`M0,${height / 2} L${width},${height / 2}`} fill="none" stroke={theme.colors.primary} strokeWidth="2" />
+        </Svg>
+      );
+    }
+
+    const min = Math.min(...numericPoints);
+    const max = Math.max(...numericPoints);
+    const range = max - min || 1;
+    const step = width / (numericPoints.length - 1);
+
+    const coords = numericPoints.map((p: number, idx: number) => {
+      const x = idx * step;
+      const y = height - ((p - min) / range) * (height - 20) - 10;
+      return { x, y };
+    });
+
+    const lineD = `M${coords.map((c: any) => `${c.x.toFixed(1)},${c.y.toFixed(1)}`).join(" L")}`;
+    const areaD = `${lineD} L${width},${height} L0,${height} Z`;
+
+    return (
+      <Svg viewBox={`0 0 ${width} ${height}`} style={styles.sheetChartSvg}>
+        <Path d={areaD} fill="rgba(0, 163, 196, 0.12)" />
+        <Path
+          d={lineD}
+          fill="none"
+          stroke={theme.colors.primary}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </Svg>
+    );
+  };
+
+  const todayForYou = homeData?.today_for_you;
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
@@ -109,21 +391,25 @@ export default function DashboardScreen() {
         }
       />
 
-      <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={<RefreshControl refreshing={isFetching} onRefresh={refetch} tintColor={theme.colors.primary} />}
+      >
         {/* Greeting Banner */}
         <View style={styles.greetingContainer}>
-          <Text style={[styles.dateText, { color: "#8E8E93" }]}>
-            {getFormattedDate()}
-          </Text>
+          <Text style={[styles.dateText, { color: "#8E8E93" }]}>{getFormattedDate()}</Text>
           <Text style={[styles.greetingText, { color: theme.colors.text }]}>
-            Morning, {user?.username ? user.username.split(" ")[1] || user.username : "Alex"}
+            {homeData?.greeting
+              ? homeData.greeting
+              : `Morning, ${user?.full_name?.split(" ")[0] || "Operator"}`}
           </Text>
           <Text style={[styles.greetingSubtext, { color: theme.colors.textSecondary }]}>
-            {"Here's a quick look at how things are going."}
+            {homeData?.subtitle || "Here's a quick look at your current readiness profile."}
           </Text>
         </View>
 
-        {/* Current OPR Card */}
+        {/* Current OPR / Readiness Score Card */}
         <View
           style={[
             styles.oprCard,
@@ -133,17 +419,31 @@ export default function DashboardScreen() {
             },
           ]}
         >
-          <Text style={[styles.cardTag, { color: theme.colors.textSecondary }]}>
-            CURRENT OPR
-          </Text>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            <Text style={[styles.cardTag, { color: theme.colors.textSecondary }]}>CURRENT OPS</Text>
+            {trendDelta !== undefined && trendDelta !== null && (
+              <View style={styles.deltaBadge}>
+                <Ionicons
+                  name={trendDelta >= 0 ? "trending-up" : "trending-down"}
+                  size={12}
+                  color={trendDelta >= 0 ? "#22C55E" : "#EF4444"}
+                />
+                <Text
+                  style={[
+                    styles.deltaText,
+                    { color: trendDelta >= 0 ? "#22C55E" : "#EF4444" },
+                  ]}
+                >
+                  {trendDelta > 0 ? `+${trendDelta}` : `${trendDelta}`}
+                </Text>
+              </View>
+            )}
+          </View>
+
           <View style={styles.oprValueRow}>
-            <Text style={[styles.oprValueText, { color: theme.colors.text }]}>
-              {readinessScore}
-            </Text>
-            <View style={[styles.yellowDot, { backgroundColor: theme.colors.warningText }]} />
-            <Text style={[styles.oprScaleText, { color: theme.colors.textTertiary }]}>
-              OPR
-            </Text>
+            <Text style={[styles.oprValueText, { color: theme.colors.text }]}>{opsScore}</Text>
+            <View style={[styles.yellowDot, { backgroundColor: theme.colors.primary }]} />
+            <Text style={[styles.oprScaleText, { color: theme.colors.textTertiary }]}>OPS SCORE</Text>
           </View>
 
           {/* OPR Track Bar */}
@@ -152,7 +452,7 @@ export default function DashboardScreen() {
               style={[
                 styles.oprFill,
                 {
-                  width: `${readinessScore}%`,
+                  width: `${Math.max(5, Math.min(100, opsScore))}%`,
                   backgroundColor: theme.colors.primary,
                 },
               ]}
@@ -161,15 +461,16 @@ export default function DashboardScreen() {
 
           {/* Badge & Info Row */}
           <View style={styles.oprMetaRow}>
-            <View style={[styles.confidenceBadge, { backgroundColor: "rgba(245, 158, 11, 0.1)", borderColor: "rgba(245, 158, 11, 0.2)" }]}>
-              <View style={[styles.badgeIndicator, { backgroundColor: theme.colors.warningText }]} />
-              <Text style={[styles.confidenceText, { color: theme.colors.warningText }]}>
-                Medium confidence
-              </Text>
+            <View
+              style={[
+                styles.confidenceBadge,
+                { backgroundColor: "rgba(0, 163, 196, 0.1)", borderColor: "rgba(0, 163, 196, 0.2)" },
+              ]}
+            >
+              <View style={[styles.badgeIndicator, { backgroundColor: theme.colors.primary }]} />
+              <Text style={[styles.confidenceText, { color: theme.colors.primary }]}>{confidenceLevel}</Text>
             </View>
-            <Text style={[styles.updatedText, { color: theme.colors.textTertiary }]}>
-              Updated 14 min ago
-            </Text>
+            <Text style={[styles.updatedText, { color: theme.colors.textTertiary }]}>{lastUpdated}</Text>
           </View>
 
           <View style={[styles.divider, { backgroundColor: theme.colors.cardBorder }]} />
@@ -177,51 +478,160 @@ export default function DashboardScreen() {
           {/* Band Row */}
           <View style={styles.bandRow}>
             <Text style={[styles.bandLabel, { color: theme.colors.textTertiary }]}>BAND</Text>
-            <Text style={[styles.bandTitle, { color: theme.colors.text }]}>Monitor</Text>
+            <Text style={[styles.bandTitle, { color: theme.colors.text }]}>{opsBand?.toUpperCase()}</Text>
             <Text style={[styles.bandDesc, { color: theme.colors.textSecondary }]}>
-              {"You're in a stable range. Keep your routine going."}
+              {homeData?.current_ops?.band_meaning || "You're in a stable readiness range. Maintain your routine."}
             </Text>
           </View>
         </View>
 
-        {/* Today's Check-in Card */}
-        <View
-          style={[
-            styles.checkInCard,
-            {
-              backgroundColor: theme.colors.card,
-              borderColor: theme.colors.cardBorder,
-            },
-          ]}
-        >
-          <Text style={[styles.cardTag, { color: theme.colors.textSecondary }]}>
-            {"TODAY'S CHECK-IN"}
-          </Text>
-          <Text style={[styles.checkInTitle, { color: theme.colors.text }]}>
-            Five questions, about a minute.
-          </Text>
-          <Text style={[styles.checkInDesc, { color: theme.colors.textSecondary }]}>
-            Daily check-ins keep your OPR current and your support team informed.
-          </Text>
-          <CustomButton
-            label="Start daily check-in"
-            onPress={() => router.push("/onboarding" as any)}
-            icon={<Ionicons name="arrow-forward" size={16} color="#FFFFFF" />}
-            iconPosition="right"
-            style={styles.checkInBtn}
-          />
-        </View>
+        {/* Today's Check-in Card (Only shown when an active check-in is pending) */}
+        {!isAlreadyCompletedToday && (
+          <View
+            style={[
+              styles.checkInCard,
+              {
+                backgroundColor: theme.colors.card,
+                borderColor: theme.colors.cardBorder,
+              },
+            ]}
+          >
+            <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+              <Text style={[styles.cardTag, { color: theme.colors.textSecondary }]}>
+                TODAY'S CHECK-IN
+              </Text>
+              {isWeeklyOpen ? (
+                <View style={[styles.badgeDone, { backgroundColor: "rgba(0, 163, 196, 0.15)" }]}>
+                  <Text style={{ color: theme.colors.primary, fontSize: 11, fontWeight: "700" }}>WEEKLY DUE</Text>
+                </View>
+              ) : null}
+            </View>
+
+            <Text style={[styles.checkInTitle, { color: theme.colors.text }]}>
+              {homeData?.todays_checkin?.title
+                ? homeData.todays_checkin.title
+                : isWeeklyOpen
+                  ? "Weekly check-in is open (Day 7 review)."
+                  : isMonthlyOpen
+                    ? "Monthly wellness review is ready (Day 30)."
+                    : "Five questions, about a minute."}
+            </Text>
+
+            <Text style={[styles.checkInDesc, { color: theme.colors.textSecondary }]}>
+              {homeData?.todays_checkin?.body
+                ? homeData.todays_checkin.body
+                : isWeeklyOpen
+                  ? "A deeper 7-day review of your training load, recovery, and consistency."
+                  : isMonthlyOpen
+                    ? "Align your longitudinal readiness and wellness goals with your support team."
+                    : "Daily check-ins keep your OPS current and your care team informed."}
+            </Text>
+
+            <CustomButton
+              label={
+                homeData?.todays_checkin?.cta_label ||
+                (isWeeklyOpen
+                  ? "Start weekly check-in"
+                  : isMonthlyOpen
+                    ? "Start monthly review"
+                    : "Start daily check-in")
+              }
+              onPress={handleStartCheckin}
+              icon={<Ionicons name="arrow-forward" size={16} color="#FFFFFF" />}
+              iconPosition="right"
+              style={styles.checkInBtn}
+            />
+          </View>
+        )}
+
+        {/* TODAY FOR YOU RECOMMENDATION (IF ACTIVE) */}
+        {todayForYou && (
+          <View
+            style={[
+              styles.recommendationCard,
+              {
+                backgroundColor: theme.colors.card,
+                borderColor:
+                  todayForYou.severity === "high"
+                    ? "rgba(239, 68, 68, 0.4)"
+                    : "rgba(0, 163, 196, 0.3)",
+              },
+            ]}
+          >
+            <View style={styles.recommendationHeader}>
+              <View style={styles.recommendationTag}>
+                <Ionicons
+                  name="sparkles"
+                  size={12}
+                  color={todayForYou.severity === "high" ? "#EF4444" : theme.colors.primary}
+                />
+                <Text
+                  style={[
+                    styles.recommendationTagText,
+                    {
+                      color:
+                        todayForYou.severity === "high" ? "#EF4444" : theme.colors.primary,
+                    },
+                  ]}
+                >
+                  TODAY FOR YOU · {todayForYou.readiness_component?.toUpperCase() || "READINESS"}
+                </Text>
+              </View>
+              {todayForYou.severity && (
+                <View
+                  style={[
+                    styles.severityBadge,
+                    {
+                      backgroundColor:
+                        todayForYou.severity === "high"
+                          ? "rgba(239, 68, 68, 0.15)"
+                          : "rgba(245, 158, 11, 0.15)",
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.severityText,
+                      {
+                        color:
+                          todayForYou.severity === "high" ? "#EF4444" : "#F59E0B",
+                      },
+                    ]}
+                  >
+                    {todayForYou.severity.toUpperCase()}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            <Text style={[styles.recommendationTitle, { color: theme.colors.text }]}>
+              {todayForYou.title}
+            </Text>
+            <Text style={[styles.recommendationBody, { color: theme.colors.textSecondary }]}>
+              {todayForYou.body || todayForYou.suggested_action}
+            </Text>
+
+            {todayForYou.specialist_action && (
+              <Pressable
+                style={[styles.specialistActionBtn, { backgroundColor: "rgba(0, 163, 196, 0.08)" }]}
+                onPress={() => router.push("/(tabs)/support" as any)}
+              >
+                <Ionicons name="chatbubbles-outline" size={14} color={theme.colors.primary} />
+                <Text style={[styles.specialistActionText, { color: theme.colors.primary }]}>
+                  {todayForYou.specialist_action}
+                </Text>
+                <Ionicons name="chevron-forward" size={14} color={theme.colors.primary} />
+              </Pressable>
+            )}
+          </View>
+        )}
 
         {/* Driver Trends Section */}
         <View style={styles.sectionHeaderRow}>
-          <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
-            Driver trends
-          </Text>
-          <Pressable style={styles.seeAllBtn}>
-            <Text style={[styles.seeAllText, { color: theme.colors.textSecondary }]}>
-              See all
-            </Text>
-            <Ionicons name="chevron-down" size={14} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
+          <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>Driver trends</Text>
+          <Pressable style={styles.seeAllBtn} onPress={() => router.push("/(tabs)/trends" as any)}>
+            <Text style={[styles.seeAllText, { color: theme.colors.textSecondary }]}>See all trends</Text>
+            <Ionicons name="chevron-forward" size={14} color={theme.colors.textSecondary} style={{ marginLeft: 4 }} />
           </Pressable>
         </View>
 
@@ -230,44 +640,37 @@ export default function DashboardScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.horizontalScrollContent}
         >
-          {/* Card 1: Physical */}
-          <Pressable
-            onPress={() => setIsDetailSheetVisible(true)}
-            style={[styles.trendCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}
-          >
-            <View style={styles.trendCardHeader}>
-              <View style={[styles.trendIndicatorDot, { backgroundColor: theme.colors.primary }]} />
-              <Text style={[styles.trendCategoryText, { color: theme.colors.textSecondary }]}>Physical</Text>
-            </View>
-            <Text style={[styles.trendValueText, { color: theme.colors.text }]}>{physicalVal}</Text>
-            <Svg width="90" height="20" style={styles.sparkline}>
-              <Path d="M0,15 Q25,8 45,12 T90,5" fill="none" stroke={theme.colors.primary} strokeWidth="1.5" />
-            </Svg>
-          </Pressable>
+          {driverTrends.map((driver, idx) => {
+            const compName = driver.readiness_component;
+            const shortName = driver.signal_label || DRIVER_SHORT_NAMES[compName] || compName;
+            const color = DRIVER_COLORS[compName] || theme.colors.primary;
+            const scoreVal = driver.current_score ?? componentScores[compName] ?? "--";
 
-          {/* Card 2: Sleep */}
-          <View style={[styles.trendCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
-            <View style={styles.trendCardHeader}>
-              <View style={[styles.trendIndicatorDot, { backgroundColor: "#8B5CF6" }]} />
-              <Text style={[styles.trendCategoryText, { color: theme.colors.textSecondary }]}>Sleep</Text>
-            </View>
-            <Text style={[styles.trendValueText, { color: theme.colors.text }]}>{sleepVal}</Text>
-            <Svg width="90" height="20" style={styles.sparkline}>
-              <Path d="M0,10 Q20,15 40,8 T90,12" fill="none" stroke="#8B5CF6" strokeWidth="1.5" />
-            </Svg>
-          </View>
-
-          {/* Card 3: Mental */}
-          <View style={[styles.trendCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
-            <View style={styles.trendCardHeader}>
-              <View style={[styles.trendIndicatorDot, { backgroundColor: "#3B82F6" }]} />
-              <Text style={[styles.trendCategoryText, { color: theme.colors.textSecondary }]}>Mental</Text>
-            </View>
-            <Text style={[styles.trendValueText, { color: theme.colors.text }]}>{mentalVal}</Text>
-            <Svg width="90" height="20" style={styles.sparkline}>
-              <Path d="M0,12 Q22,4 45,14 T90,8" fill="none" stroke="#3B82F6" strokeWidth="1.5" />
-            </Svg>
-          </View>
+            return (
+              <Pressable
+                key={driver.readiness_component || idx}
+                onPress={() => handleOpenDriver(compName)}
+                style={[
+                  styles.trendCard,
+                  { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder },
+                ]}
+              >
+                <View style={styles.trendCardHeader}>
+                  <View style={[styles.trendIndicatorDot, { backgroundColor: color }]} />
+                  <Text style={[styles.trendCategoryText, { color: theme.colors.textSecondary }]}>
+                    {shortName}
+                  </Text>
+                  {driver.stale && (
+                    <View style={styles.staleBadge}>
+                      <Text style={styles.staleBadgeText}>Stale</Text>
+                    </View>
+                  )}
+                </View>
+                <Text style={[styles.trendValueText, { color: theme.colors.text }]}>{scoreVal}</Text>
+                {renderSparkline(driver.trend_points, color)}
+              </Pressable>
+            );
+          })}
         </ScrollView>
 
         {/* Readiness Profile Radar */}
@@ -282,28 +685,26 @@ export default function DashboardScreen() {
         >
           <View style={styles.radarHeaderRow}>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.cardTag, { color: theme.colors.textSecondary }]}>
-                READINESS PROFILE
-              </Text>
-              <Text style={[styles.radarTitle, { color: theme.colors.text }]}>
-                Your five drivers
-              </Text>
+              <Text style={[styles.cardTag, { color: theme.colors.textSecondary }]}>READINESS PROFILE</Text>
+              <Text style={[styles.radarTitle, { color: theme.colors.text }]}>Your five drivers</Text>
             </View>
-            <View style={[styles.confidenceBadge, { backgroundColor: "rgba(245, 158, 11, 0.1)", borderColor: "rgba(245, 158, 11, 0.2)" }]}>
-              <View style={[styles.badgeIndicator, { backgroundColor: theme.colors.warningText }]} />
-              <Text style={[styles.confidenceText, { color: theme.colors.warningText }]}>
-                Medium confidence
-              </Text>
+            <View
+              style={[
+                styles.confidenceBadge,
+                { backgroundColor: "rgba(0, 163, 196, 0.1)", borderColor: "rgba(0, 163, 196, 0.2)" },
+              ]}
+            >
+              <View style={[styles.badgeIndicator, { backgroundColor: theme.colors.primary }]} />
+              <Text style={[styles.confidenceText, { color: theme.colors.primary }]}>{confidenceLevel}</Text>
             </View>
           </View>
           <Text style={[styles.radarDesc, { color: theme.colors.textSecondary }]}>
-            A visual snapshot of the components shaping your current OPR.
+            A live snapshot of the components shaping your current OPS score.
           </Text>
 
           {/* Custom SVG Pentagon Radar Chart */}
           <View style={styles.radarChartWrapper}>
             <Svg width="280" height="260">
-              {/* Concentric grid pentagons */}
               {[25, 50, 75, 100].map((level) => (
                 <Polygon
                   key={level}
@@ -314,134 +715,51 @@ export default function DashboardScreen() {
                 />
               ))}
 
-              {/* Pentagon Axes */}
               {angles.map((angle, idx) => {
                 const x = centerX + radius * Math.cos(angle);
                 const y = centerY + radius * Math.sin(angle);
-                return (
-                  <Line
-                    key={idx}
-                    x1={centerX}
-                    y1={centerY}
-                    x2={x}
-                    y2={y}
-                    stroke="#27272A"
-                    strokeWidth="1"
-                  />
-                );
+                return <Line key={idx} x1={centerX} y1={centerY} x2={x} y2={y} stroke="#27272A" strokeWidth="1" />;
               })}
 
-              {/* Data Polygon */}
-              <Polygon
-                points={dataPoints}
-                fill="rgba(0, 163, 196, 0.15)"
-                stroke={theme.colors.primary}
-                strokeWidth="1.5"
-              />
+              <Polygon points={dataPoints} fill="rgba(0, 163, 196, 0.15)" stroke={theme.colors.primary} strokeWidth="1.5" />
 
-              {/* Text Labels positioned around vertices */}
-              {/* Top - Physical */}
-              <SvgText
-                x={centerX}
-                y={centerY - radius - 15}
-                fill="#FFFFFF"
-                fontSize="11"
-                fontWeight="700"
-                textAnchor="middle"
-              >
-                {`Physical`}
+              {/* Physical */}
+              <SvgText x={centerX} y={centerY - radius - 15} fill="#FFFFFF" fontSize="11" fontWeight="700" textAnchor="middle">
+                Physical
               </SvgText>
-              <SvgText
-                x={centerX}
-                y={centerY - radius - 3}
-                fill="#8E8E93"
-                fontSize="10"
-                textAnchor="middle"
-              >
+              <SvgText x={centerX} y={centerY - radius - 3} fill="#8E8E93" fontSize="10" textAnchor="middle">
                 {physicalVal.toString()}
               </SvgText>
 
-              {/* Top-Right - Sleep */}
-              <SvgText
-                x={centerX + radius * Math.cos(angles[1]) + 24}
-                y={centerY + radius * Math.sin(angles[1]) - 3}
-                fill="#FFFFFF"
-                fontSize="11"
-                fontWeight="700"
-                textAnchor="middle"
-              >
-                {`Sleep`}
+              {/* Sleep */}
+              <SvgText x={centerX + radius * Math.cos(angles[1]) + 24} y={centerY + radius * Math.sin(angles[1]) - 3} fill="#FFFFFF" fontSize="11" fontWeight="700" textAnchor="middle">
+                Sleep
               </SvgText>
-              <SvgText
-                x={centerX + radius * Math.cos(angles[1]) + 24}
-                y={centerY + radius * Math.sin(angles[1]) + 9}
-                fill="#8E8E93"
-                fontSize="10"
-                textAnchor="middle"
-              >
+              <SvgText x={centerX + radius * Math.cos(angles[1]) + 24} y={centerY + radius * Math.sin(angles[1]) + 9} fill="#8E8E93" fontSize="10" textAnchor="middle">
                 {sleepVal.toString()}
               </SvgText>
 
-              {/* Bottom-Right - Mental */}
-              <SvgText
-                x={centerX + radius * Math.cos(angles[2]) + 12}
-                y={centerY + radius * Math.sin(angles[2]) + 15}
-                fill="#FFFFFF"
-                fontSize="11"
-                fontWeight="700"
-                textAnchor="middle"
-              >
-                {`Mental`}
+              {/* Mental */}
+              <SvgText x={centerX + radius * Math.cos(angles[2]) + 12} y={centerY + radius * Math.sin(angles[2]) + 15} fill="#FFFFFF" fontSize="11" fontWeight="700" textAnchor="middle">
+                Mental
               </SvgText>
-              <SvgText
-                x={centerX + radius * Math.cos(angles[2]) + 12}
-                y={centerY + radius * Math.sin(angles[2]) + 27}
-                fill="#8E8E93"
-                fontSize="10"
-                textAnchor="middle"
-              >
+              <SvgText x={centerX + radius * Math.cos(angles[2]) + 12} y={centerY + radius * Math.sin(angles[2]) + 27} fill="#8E8E93" fontSize="10" textAnchor="middle">
                 {mentalVal.toString()}
               </SvgText>
 
-              {/* Bottom-Left - Nutritional */}
-              <SvgText
-                x={centerX + radius * Math.cos(angles[3]) - 24}
-                y={centerY + radius * Math.sin(angles[3]) + 15}
-                fill="#FFFFFF"
-                fontSize="11"
-                fontWeight="700"
-                textAnchor="middle"
-              >
-                {`Nutritional`}
+              {/* Nutritional */}
+              <SvgText x={centerX + radius * Math.cos(angles[3]) - 24} y={centerY + radius * Math.sin(angles[3]) + 15} fill="#FFFFFF" fontSize="11" fontWeight="700" textAnchor="middle">
+                Nutritional
               </SvgText>
-              <SvgText
-                x={centerX + radius * Math.cos(angles[3]) - 24}
-                y={centerY + radius * Math.sin(angles[3]) + 27}
-                fill="#8E8E93"
-                fontSize="10"
-                textAnchor="middle"
-              >
+              <SvgText x={centerX + radius * Math.cos(angles[3]) - 24} y={centerY + radius * Math.sin(angles[3]) + 27} fill="#8E8E93" fontSize="10" textAnchor="middle">
                 {nutritionalVal.toString()}
               </SvgText>
 
-              {/* Top-Left - Spiritual */}
-              <SvgText
-                x={centerX + radius * Math.cos(angles[4]) - 24}
-                y={centerY + radius * Math.sin(angles[4]) - 3}
-                fill="#FFFFFF"
-                fontSize="11"
-                fontWeight="700"
-                textAnchor="middle"
-              >
-                {`Spiritual`}
+              {/* Spiritual */}
+              <SvgText x={centerX + radius * Math.cos(angles[4]) - 24} y={centerY + radius * Math.sin(angles[4]) - 3} fill="#FFFFFF" fontSize="11" fontWeight="700" textAnchor="middle">
+                Spiritual
               </SvgText>
-              <SvgText
-                x={centerX + radius * Math.cos(angles[4]) - 24}
-                y={centerY + radius * Math.sin(angles[4]) + 9}
-                fill="#8E8E93"
-                fontSize="10"
-                textAnchor="middle"
-              >
+              <SvgText x={centerX + radius * Math.cos(angles[4]) - 24} y={centerY + radius * Math.sin(angles[4]) + 9} fill="#8E8E93" fontSize="10" textAnchor="middle">
                 {spiritualVal.toString()}
               </SvgText>
             </Svg>
@@ -450,117 +768,87 @@ export default function DashboardScreen() {
           {/* Legend Grid */}
           <View style={styles.legendGrid}>
             <View style={styles.legendRow}>
-              <View style={styles.legendItem}>
+              <Pressable onPress={() => handleOpenDriver("Physical Readiness")} style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: theme.colors.primary }]} />
                 <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>Physical</Text>
                 <Text style={[styles.legendVal, { color: theme.colors.text }]}>{physicalVal}</Text>
-              </View>
-              <View style={styles.legendItem}>
+              </Pressable>
+              <Pressable onPress={() => handleOpenDriver("Sleep Readiness")} style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: "#8B5CF6" }]} />
                 <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>Sleep</Text>
                 <Text style={[styles.legendVal, { color: theme.colors.text }]}>{sleepVal}</Text>
-              </View>
+              </Pressable>
             </View>
 
             <View style={styles.legendRow}>
-              <View style={styles.legendItem}>
+              <Pressable onPress={() => handleOpenDriver("Mental Performance")} style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: "#3B82F6" }]} />
                 <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>Mental</Text>
                 <Text style={[styles.legendVal, { color: theme.colors.text }]}>{mentalVal}</Text>
-              </View>
-              <View style={styles.legendItem}>
+              </Pressable>
+              <Pressable onPress={() => handleOpenDriver("Nutritional Readiness")} style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: "#10B981" }]} />
                 <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>Nutritional</Text>
                 <Text style={[styles.legendVal, { color: theme.colors.text }]}>{nutritionalVal}</Text>
-              </View>
+              </Pressable>
             </View>
 
             <View style={styles.legendRow}>
-              <View style={styles.legendItem}>
+              <Pressable onPress={() => handleOpenDriver("Spiritual Readiness")} style={styles.legendItem}>
                 <View style={[styles.legendDot, { backgroundColor: "#F59E0B" }]} />
                 <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>Spiritual</Text>
                 <Text style={[styles.legendVal, { color: theme.colors.text }]}>{spiritualVal}</Text>
-              </View>
+              </Pressable>
               <View style={styles.legendItem} />
             </View>
           </View>
         </View>
 
-        {/* Today for you */}
-        <Text style={[styles.sectionHeading, { color: theme.colors.text, marginTop: 12, marginBottom: 12 }]}>
-          Today for you
-        </Text>
-
-        <View style={[styles.todayCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
-          <View style={styles.todayGoalRow}>
-            <View style={styles.goalBadge}>
-              <Ionicons name="compass-outline" size={12} color={theme.colors.primary} />
-              <Text style={[styles.goalBadgeText, { color: theme.colors.primary }]}>Goal</Text>
-            </View>
-            <Text style={[styles.goalSubtext, { color: theme.colors.textTertiary }]}>Sleep · G2</Text>
-          </View>
-
-          <Text style={[styles.todayTitleText, { color: theme.colors.text }]}>
-            Add a 20-minute wind-down tonight
-          </Text>
-          <Text style={[styles.todayBodyText, { color: theme.colors.textSecondary }]}>
-            Your sleep readiness has been flat for four days. A short, screen-free wind-down has helped others in your unit this week.
-          </Text>
-
-          <View style={styles.todayActionsRow}>
-            <Pressable
-              onPress={() => setIsDetailSheetVisible(true)}
-              style={[styles.actionBtnFilled, { backgroundColor: "#27272A" }]}
-            >
-              <Text style={[styles.actionBtnFilledText, { color: theme.colors.text }]}>Open action</Text>
-            </Pressable>
-            <Pressable style={styles.actionBtnText}>
-              <Text style={[styles.actionBtnTextLabel, { color: theme.colors.textSecondary }]}>Dismiss</Text>
-            </Pressable>
-          </View>
-        </View>
-
         {/* Talk to your team */}
         <View style={[styles.sectionHeaderRow, { marginTop: 12 }]}>
-          <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
-            Talk to your team
-          </Text>
-          <Pressable style={styles.openSupportBtn}>
-            <Text style={[styles.openSupportText, { color: theme.colors.primary }]}>
-              Open support
-            </Text>
+          <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>Talk to your team</Text>
+          <Pressable style={styles.openSupportBtn} onPress={() => router.push("/(tabs)/support" as any)}>
+            <Text style={[styles.openSupportText, { color: theme.colors.primary }]}>Open support</Text>
             <Ionicons name="arrow-forward" size={14} color={theme.colors.primary} style={{ marginLeft: 4 }} />
           </Pressable>
         </View>
 
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.horizontalScrollContent}
-        >
-          {/* Card 1: Fitness */}
-          <View style={[styles.teamCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
-            <View style={[styles.teamIconWrapper, { backgroundColor: "rgba(0, 163, 196, 0.1)" }]}>
-              <Ionicons name="barbell-outline" size={20} color={theme.colors.primary} />
-            </View>
-            <Text style={[styles.teamTitle, { color: theme.colors.text }]}>Fitness</Text>
-            <Text style={[styles.teamDesc, { color: theme.colors.textSecondary }]}>Plan, training, OPR</Text>
-            <View style={styles.teamStatusBadge}>
-              <Text style={[styles.teamStatusText, { color: theme.colors.textSecondary }]}>Active</Text>
-            </View>
-          </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.horizontalScrollContent}>
+          {supportPreviewList.map((item, idx) => {
+            const iconName =
+              item.key === "scs"
+                ? "barbell-outline"
+                : item.key === "pt_im"
+                  ? "heart-half-outline"
+                  : "shield-checkmark-outline";
+            const iconColor =
+              item.key === "scs"
+                ? theme.colors.primary
+                : item.key === "pt_im"
+                  ? "#10B981"
+                  : "#F59E0B";
 
-          {/* Card 2: Injury/Recovery */}
-          <View style={[styles.teamCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
-            <View style={[styles.teamIconWrapper, { backgroundColor: "rgba(16, 185, 129, 0.1)" }]}>
-              <Ionicons name="heart-half-outline" size={20} color="#10B981" />
-            </View>
-            <Text style={[styles.teamTitle, { color: theme.colors.text }]}>Injury/Recovery</Text>
-            <Text style={[styles.teamDesc, { color: theme.colors.textSecondary }]}>Rehab, return-to-perf</Text>
-            <View style={styles.teamStatusBadge}>
-              <Text style={[styles.teamStatusText, { color: theme.colors.textSecondary }]}>Available</Text>
-            </View>
-          </View>
+            return (
+              <Pressable
+                key={item.key || idx}
+                onPress={() => router.push("/(tabs)/support" as any)}
+                style={[styles.teamCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}
+              >
+                <View style={[styles.teamIconWrapper, { backgroundColor: `${iconColor}1A` }]}>
+                  <Ionicons name={iconName as any} size={20} color={iconColor} />
+                </View>
+                <Text style={[styles.teamTitle, { color: theme.colors.text }]}>{item.label}</Text>
+                <Text style={[styles.teamDesc, { color: theme.colors.textSecondary }]} numberOfLines={2}>
+                  {item.description}
+                </Text>
+                <View style={styles.teamStatusBadge}>
+                  <Text style={[styles.teamStatusText, { color: theme.colors.textSecondary }]}>
+                    {item.availability_status}
+                  </Text>
+                </View>
+              </Pressable>
+            );
+          })}
         </ScrollView>
 
         {/* Upcoming Section */}
@@ -568,218 +856,200 @@ export default function DashboardScreen() {
           Upcoming
         </Text>
 
-        <View
-          style={[
-            styles.agendaCard,
-            {
-              backgroundColor: theme.colors.card,
-              borderColor: theme.colors.cardBorder,
-            },
-          ]}
-        >
-          {/* Agenda Item 1 */}
-          <Pressable
-            onPress={() => router.push("/checkin" as any)}
-            style={[styles.agendaItemRow, { borderBottomColor: theme.colors.cardBorder }]}
-          >
-            <View style={styles.agendaLeft}>
-              <View style={[styles.agendaIconWrapper, { backgroundColor: "#27272A" }]}>
-                <Ionicons name="calendar-outline" size={16} color={theme.colors.textSecondary} />
-              </View>
-              <View style={{ marginLeft: 12, flex: 1 }}>
-                <Text style={[styles.agendaItemTitle, { color: theme.colors.text }]}>Weekly check-in</Text>
-                <Text style={[styles.agendaItemSubtitle, { color: theme.colors.textSecondary }]}>Available in 2 days</Text>
-              </View>
-            </View>
-            <View style={[styles.agendaBadge, { backgroundColor: "#27272A" }]}>
-              <Text style={[styles.agendaBadgeText, { color: theme.colors.text }]}>Cadence</Text>
-            </View>
-          </Pressable>
+        <View style={[styles.agendaCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
+          {upcomingList.map((item, idx) => {
+            const isLast = idx === upcomingList.length - 1;
+            const iconName =
+              item.key === "weekly_checkin"
+                ? "calendar-outline"
+                : item.key === "oft"
+                  ? "fitness-outline"
+                  : "clipboard-outline";
 
-          {/* Agenda Item 2 */}
-          <Pressable
-            onPress={() => router.push("/oft" as any)}
-            style={[styles.agendaItemRow, { borderBottomColor: theme.colors.cardBorder }]}
-          >
-            <View style={styles.agendaLeft}>
-              <View style={[styles.agendaIconWrapper, { backgroundColor: "#27272A" }]}>
-                <Ionicons name="add-circle-outline" size={16} color={theme.colors.textSecondary} />
-              </View>
-              <View style={{ marginLeft: 12, flex: 1 }}>
-                <Text style={[styles.agendaItemTitle, { color: theme.colors.text }]}>OFT – monthly components</Text>
-                <Text style={[styles.agendaItemSubtitle, { color: theme.colors.textSecondary }]}>Scheduled - 22 July</Text>
-              </View>
-            </View>
-            <View style={[styles.agendaBadge, { backgroundColor: "#27272A" }]}>
-              <Text style={[styles.agendaBadgeText, { color: theme.colors.text }]}>Operational</Text>
-            </View>
-          </Pressable>
+            const routeTarget =
+              item.key === "weekly_checkin"
+                ? "/(tabs)/(home)/checkin"
+                : item.key === "oft"
+                  ? "/(tabs)/(home)/oft"
+                  : "/(tabs)/(home)/assessments";
 
-          {/* Agenda Item 3 */}
-          <Pressable
-            onPress={() => router.push("/assessments" as any)}
-            style={styles.agendaItemRow}
-          >
-            <View style={styles.agendaLeft}>
-              <View style={[styles.agendaIconWrapper, { backgroundColor: "#27272A" }]}>
-                <Ionicons name="time-outline" size={16} color={theme.colors.textSecondary} />
-              </View>
-              <View style={{ marginLeft: 12, flex: 1 }}>
-                <Text style={[styles.agendaItemTitle, { color: theme.colors.text }]}>Initial HPO/H2P assessment</Text>
-                <Text style={[styles.agendaItemSubtitle, { color: theme.colors.textSecondary }]}>Complete by 15 Aug · 20d left</Text>
-              </View>
-            </View>
-            <View style={[styles.agendaBadge, { backgroundColor: "#27272A" }]}>
-              <Text style={[styles.agendaBadgeText, { color: theme.colors.text }]}>Program</Text>
-            </View>
-          </Pressable>
+            return (
+              <Pressable
+                key={item.key || idx}
+                onPress={() => router.push(routeTarget as any)}
+                style={[
+                  styles.agendaItemRow,
+                  !isLast && { borderBottomWidth: 1, borderBottomColor: theme.colors.cardBorder },
+                ]}
+              >
+                <View style={styles.agendaLeft}>
+                  <View style={[styles.agendaIconWrapper, { backgroundColor: "#27272A" }]}>
+                    <Ionicons name={iconName as any} size={16} color={theme.colors.textSecondary} />
+                  </View>
+                  <View style={{ marginLeft: 12, flex: 1 }}>
+                    <Text style={[styles.agendaItemTitle, { color: theme.colors.text }]}>{item.title}</Text>
+                    <Text style={[styles.agendaItemSubtitle, { color: theme.colors.textSecondary }]}>
+                      {item.subtitle}
+                    </Text>
+                  </View>
+                </View>
+                <View style={[styles.agendaBadge, { backgroundColor: "#27272A" }]}>
+                  <Text style={[styles.agendaBadgeText, { color: theme.colors.text }]}>{item.tag}</Text>
+                </View>
+              </Pressable>
+            );
+          })}
         </View>
 
         {/* Footer */}
         <Text style={[styles.footerText, { color: theme.colors.textTertiary }]}>
-          Pull to refresh · Last updated 14 min ago
+          Pull to refresh · {lastUpdated}
         </Text>
       </ScrollView>
 
-      {/* ================= DETAIL BOTTOM SHEET ================= */}
+      {/* ================= DRIVER DETAIL BOTTOM SHEET ================= */}
       <CustomBottomSheet
         visible={isDetailSheetVisible}
         onClose={() => setIsDetailSheetVisible(false)}
-        title="Physical readiness"
+        title={selectedDriver}
         subtitle="DRIVER DETAIL"
         snapPoints={["80%"]}
         scrollable={true}
       >
-        <Text style={[styles.sheetSubtitleText, { color: theme.colors.textSecondary }]}>
-          Updated 14:02 · score band Ready
-        </Text>
+        {isDriverLoading ? (
+          <ActivityIndicator size="small" color={theme.colors.primary} style={{ marginVertical: 32 }} />
+        ) : (
+          <>
+            <Text style={[styles.sheetSubtitleText, { color: theme.colors.textSecondary }]}>
+              Current score {driverDetail?.current_score ?? componentScores[selectedDriver] ?? 75} · band{" "}
+              {driverDetail?.score_band || opsBand}
+            </Text>
 
-        {/* Chart Card */}
-        <View style={[styles.sheetChartCard, { backgroundColor: "#15161A", borderColor: theme.colors.cardBorder }]}>
-          <Svg viewBox="0 0 320 80" style={styles.sheetChartSvg}>
-            <Path
-              d="M0,50 Q40,48 80,45 T160,35 T240,42 T320,25"
-              fill="none"
-              stroke={theme.colors.primary}
-              strokeWidth="2"
+            {/* Chart Card */}
+            <View style={[styles.sheetChartCard, { backgroundColor: "#15161A", borderColor: theme.colors.cardBorder }]}>
+              {renderSheetAreaChart(driverDetail?.trend_points || [])}
+              <Text style={[styles.sheetChartFooter, { color: theme.colors.textTertiary }]}>
+                Rolling trend points · {driverDetail?.trend_direction?.toUpperCase() || "STABLE"}
+              </Text>
+            </View>
+
+            {/* Grid of Metric Cards */}
+            <View style={styles.sheetGrid}>
+              <View style={[styles.sheetGridCard, { backgroundColor: "#15161A", borderColor: theme.colors.cardBorder }]}>
+                <Text style={[styles.sheetGridLabel, { color: theme.colors.textTertiary }]}>TREND</Text>
+                <View style={styles.sheetGridValueRow}>
+                  <Ionicons
+                    name={
+                      driverDetail?.trend_direction === "down"
+                        ? "trending-down"
+                        : "trending-up"
+                    }
+                    size={14}
+                    color={
+                      driverDetail?.trend_direction === "down"
+                        ? "#EF4444"
+                        : theme.colors.success
+                    }
+                    style={{ marginRight: 4 }}
+                  />
+                  <Text style={[styles.sheetGridVal, { color: theme.colors.text }]}>
+                    {driverDetail?.trend_direction?.toUpperCase() || "STABLE"}
+                  </Text>
+                </View>
+                <Text style={[styles.sheetGridSub, { color: theme.colors.textTertiary }]}>vs. prior 30d</Text>
+              </View>
+
+              <View style={[styles.sheetGridCard, { backgroundColor: "#15161A", borderColor: theme.colors.cardBorder }]}>
+                <Text style={[styles.sheetGridLabel, { color: theme.colors.textTertiary }]}>7D Δ</Text>
+                <Text style={[styles.sheetGridVal, { color: theme.colors.text }]}>
+                  {driverDetail?.delta_7d !== undefined && driverDetail?.delta_7d !== null
+                    ? `${driverDetail.delta_7d > 0 ? "+" : ""}${driverDetail.delta_7d}`
+                    : "--"}
+                </Text>
+                <Text style={[styles.sheetGridSub, { color: theme.colors.textTertiary }]}>7-day delta</Text>
+              </View>
+
+              <View style={[styles.sheetGridCard, { backgroundColor: "#15161A", borderColor: theme.colors.cardBorder }]}>
+                <Text style={[styles.sheetGridLabel, { color: theme.colors.textTertiary }]}>30D Δ</Text>
+                <Text style={[styles.sheetGridVal, { color: theme.colors.text }]}>
+                  {driverDetail?.delta_30d !== undefined && driverDetail?.delta_30d !== null
+                    ? `${driverDetail.delta_30d > 0 ? "+" : ""}${driverDetail.delta_30d}`
+                    : "--"}
+                </Text>
+                <Text style={[styles.sheetGridSub, { color: theme.colors.textTertiary }]}>30-day delta</Text>
+              </View>
+            </View>
+
+            {/* Influences List */}
+            {driverDetail?.influences && driverDetail.influences.length > 0 && (
+              <>
+                <Text style={[styles.sheetSectionHeader, { color: theme.colors.textTertiary }]}>INFLUENCES</Text>
+                <View style={styles.sheetActionList}>
+                  {driverDetail.influences.map((inf, idx) => (
+                    <View
+                      key={inf.key || idx}
+                      style={[
+                        styles.sheetActionItem,
+                        { backgroundColor: "#15161A", borderColor: theme.colors.cardBorder },
+                      ]}
+                    >
+                      <Ionicons
+                        name="information-circle-outline"
+                        size={18}
+                        color={theme.colors.primary}
+                        style={{ marginRight: 10 }}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.influenceTitle, { color: theme.colors.text }]}>{inf.title}</Text>
+                        <Text style={[styles.influenceDetail, { color: theme.colors.textSecondary }]}>
+                          {inf.detail}
+                        </Text>
+                      </View>
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
+
+            {/* Try This Recommendations */}
+            {driverDetail?.try_this && driverDetail.try_this.length > 0 && (
+              <>
+                <Text style={[styles.sheetSectionHeader, { color: theme.colors.textTertiary }]}>TRY THIS</Text>
+                <View style={styles.sheetActionList}>
+                  {driverDetail.try_this.map((item, idx) => (
+                    <View
+                      key={idx}
+                      style={[
+                        styles.sheetActionItem,
+                        { backgroundColor: "#15161A", borderColor: theme.colors.cardBorder },
+                      ]}
+                    >
+                      <Ionicons
+                        name="checkmark-circle-outline"
+                        size={18}
+                        color={theme.colors.primary}
+                        style={{ marginRight: 10 }}
+                      />
+                      <Text style={[styles.sheetActionText, { color: theme.colors.text }]}>{item}</Text>
+                    </View>
+                  ))}
+                </View>
+              </>
+            )}
+
+            {/* CTA Button */}
+            <CustomButton
+              label={driverDetail?.support_cta_label || "Talk to Support Team"}
+              onPress={() => {
+                setIsDetailSheetVisible(false);
+                router.push((driverDetail?.support_route as any) || "/(tabs)/support");
+              }}
+              icon={<Ionicons name="arrow-forward" size={16} color="#FFFFFF" />}
+              iconPosition="right"
+              style={styles.sheetSubmitBtn}
             />
-            <Path
-              d="M0,50 Q40,48 80,45 T160,35 T240,42 T320,25 L320,80 L0,80 Z"
-              fill="rgba(0, 163, 196, 0.08)"
-            />
-          </Svg>
-          <Text style={[styles.sheetChartFooter, { color: theme.colors.textTertiary }]}>
-            Last 30 days · placeholder
-          </Text>
-        </View>
-
-        {/* Grid of 4 Cards */}
-        <View style={styles.sheetGrid}>
-          {/* Item 1: Trend */}
-          <View style={[styles.sheetGridCard, { backgroundColor: "#15161A", borderColor: theme.colors.cardBorder }]}>
-            <Text style={[styles.sheetGridLabel, { color: theme.colors.textTertiary }]}>TREND</Text>
-            <View style={styles.sheetGridValueRow}>
-              <Ionicons name="trending-up" size={14} color={theme.colors.success} style={{ marginRight: 4 }} />
-              <Text style={[styles.sheetGridVal, { color: theme.colors.text }]}>Up</Text>
-            </View>
-            <Text style={[styles.sheetGridSub, { color: theme.colors.textTertiary }]}>vs. prior 30d</Text>
-          </View>
-
-          {/* Item 2: 7D Delta */}
-          <View style={[styles.sheetGridCard, { backgroundColor: "#15161A", borderColor: theme.colors.cardBorder }]}>
-            <Text style={[styles.sheetGridLabel, { color: theme.colors.textTertiary }]}>7D Δ</Text>
-            <Text style={[styles.sheetGridVal, { color: theme.colors.text }]}>+4.2</Text>
-            <Text style={[styles.sheetGridSub, { color: theme.colors.textTertiary }]}>placeholder</Text>
-          </View>
-
-          {/* Item 3: 30D Delta */}
-          <View style={[styles.sheetGridCard, { backgroundColor: "#15161A", borderColor: theme.colors.cardBorder }]}>
-            <Text style={[styles.sheetGridLabel, { color: theme.colors.textTertiary }]}>30D Δ</Text>
-            <Text style={[styles.sheetGridVal, { color: theme.colors.text }]}>+9.6</Text>
-            <Text style={[styles.sheetGridSub, { color: theme.colors.textTertiary }]}>placeholder</Text>
-          </View>
-
-          {/* Item 4: Peer Cohort */}
-          <View style={[styles.sheetGridCard, { backgroundColor: "#15161A", borderColor: theme.colors.cardBorder }]}>
-            <Text style={[styles.sheetGridLabel, { color: theme.colors.textTertiary }]}>PEER COHORT</Text>
-            <Text style={[styles.sheetGridVal, { color: theme.colors.text }]}>Top 28%</Text>
-            <Text style={[styles.sheetGridSub, { color: theme.colors.textTertiary }]}>k-anonymous</Text>
-          </View>
-        </View>
-
-        {/* Action List Section */}
-        <Text style={[styles.sheetSectionHeader, { color: theme.colors.textTertiary }]}>TRY THIS</Text>
-        <View style={styles.sheetActionList}>
-          <View style={[styles.sheetActionItem, { backgroundColor: "#15161A", borderColor: theme.colors.cardBorder }]}>
-            <Ionicons name="checkmark-circle-outline" size={18} color={theme.colors.primary} style={{ marginRight: 10 }} />
-            <Text style={[styles.sheetActionText, { color: theme.colors.text }]}>
-              {"Log a 10-minute mobility session before tomorrow's shift."}
-            </Text>
-          </View>
-          <View style={[styles.sheetActionItem, { backgroundColor: "#15161A", borderColor: theme.colors.cardBorder }]}>
-            <Ionicons name="checkmark-circle-outline" size={18} color={theme.colors.primary} style={{ marginRight: 10 }} />
-            <Text style={[styles.sheetActionText, { color: theme.colors.text }]}>
-              {"Pair today's check-in with a brief walk after lunch."}
-            </Text>
-          </View>
-          <View style={[styles.sheetActionItem, { backgroundColor: "#15161A", borderColor: theme.colors.cardBorder }]}>
-            <Ionicons name="checkmark-circle-outline" size={18} color={theme.colors.primary} style={{ marginRight: 10 }} />
-            <Text style={[styles.sheetActionText, { color: theme.colors.text }]}>
-              {"Schedule your next readiness check-in before Friday."}
-            </Text>
-          </View>
-        </View>
-
-        {/* Influences Section */}
-        <View style={[styles.influencesContainer, { backgroundColor: "#15161A", borderColor: theme.colors.cardBorder }]}>
-          <View style={styles.influencesHeader}>
-            <Text style={[styles.influencesHeaderText, { color: theme.colors.text }]}>What influences this</Text>
-            <Ionicons name="chevron-up" size={14} color={theme.colors.textSecondary} />
-          </View>
-          <View style={styles.influencesBody}>
-            <View style={styles.influenceRow}>
-              <Ionicons name="calendar-outline" size={16} color={theme.colors.textSecondary} style={{ marginRight: 10 }} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.influenceTitle, { color: theme.colors.text }]}>Daily check-ins</Text>
-                <Text style={[styles.influenceSub, { color: theme.colors.textTertiary }]}>
-                  {"Last 7 days logged on time · placeholder"}
-                </Text>
-              </View>
-            </View>
-            <View style={[styles.influenceDivider, { backgroundColor: theme.colors.cardBorder }]} />
-            <View style={styles.influenceRow}>
-              <Ionicons name="barbell-outline" size={16} color={theme.colors.textSecondary} style={{ marginRight: 10 }} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.influenceTitle, { color: theme.colors.text }]}>Activity band</Text>
-                <Text style={[styles.influenceSub, { color: theme.colors.textTertiary }]}>
-                  {"Daily steps below cohort median · placeholder"}
-                </Text>
-              </View>
-            </View>
-            <View style={[styles.influenceDivider, { backgroundColor: theme.colors.cardBorder }]} />
-            <View style={styles.influenceRow}>
-              <Ionicons name="repeat-outline" size={16} color={theme.colors.textSecondary} style={{ marginRight: 10 }} />
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.influenceTitle, { color: theme.colors.text }]}>Recovery trend</Text>
-                <Text style={[styles.influenceSub, { color: theme.colors.textTertiary }]}>
-                  {"Variability rising across last 4 days · placeholder"}
-                </Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* Talk to my PT/IM Submit Button */}
-        <CustomButton
-          label="Talk to my PT/IM"
-          onPress={() => alert("Connecting to your PT/IM...")}
-          icon={<Ionicons name="arrow-forward" size={16} color="#FFFFFF" />}
-          iconPosition="right"
-          style={styles.sheetSubmitBtn}
-        />
-        <Text style={[styles.sheetSubmitBtnSub, { color: theme.colors.textTertiary }]}>
-          {"Routes to your PT/IM in My Support Team"}
-        </Text>
+          </>
+        )}
       </CustomBottomSheet>
     </SafeAreaView>
   );
@@ -801,39 +1071,28 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 40,
+    padding: 20,
+    paddingBottom: 60,
   },
   headerRight: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 16,
   },
   bellBtn: {
-    position: "relative",
-    width: 32,
-    height: 32,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
     justifyContent: "center",
     alignItems: "center",
   },
   bellDot: {
     position: "absolute",
-    top: 6,
-    right: 6,
+    top: 10,
+    right: 12,
     width: 6,
     height: 6,
     borderRadius: 3,
-  },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  statusBtn: {
-    width: 32,
-    height: 32,
-    justifyContent: "center",
-    alignItems: "center",
   },
   greetingContainer: {
     marginBottom: 20,
@@ -843,67 +1102,79 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: 0.5,
     marginBottom: 6,
-    textTransform: "uppercase",
   },
   greetingText: {
     fontSize: 26,
-    fontWeight: "800",
+    fontWeight: "600",
     marginBottom: 4,
   },
   greetingSubtext: {
     fontSize: 14,
+    lineHeight: 20,
   },
   oprCard: {
-    borderWidth: 1,
     borderRadius: 16,
+    borderWidth: 1,
     padding: 20,
     marginBottom: 16,
   },
   cardTag: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.5,
-    marginBottom: 8,
-    textTransform: "uppercase",
+    marginBottom: 12,
+  },
+  deltaBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    marginBottom: 12,
+    gap: 4,
+  },
+  deltaText: {
+    fontSize: 12,
+    fontWeight: "700",
   },
   oprValueRow: {
     flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
+    alignItems: "baseline",
+    marginBottom: 16,
   },
   oprValueText: {
-    fontSize: 56,
-    fontWeight: "900",
-    lineHeight: 60,
+    fontSize: 48,
+    fontWeight: "700",
+    lineHeight: 48,
   },
   yellowDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginLeft: 6,
-    marginTop: -20,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    marginHorizontal: 8,
+    marginBottom: 6,
   },
   oprScaleText: {
-    fontSize: 16,
+    fontSize: 12,
     fontWeight: "700",
-    marginLeft: 8,
-    alignSelf: "flex-end",
-    paddingBottom: 10,
+    letterSpacing: 0.5,
   },
   oprTrack: {
-    height: 4,
-    borderRadius: 2,
+    height: 6,
+    borderRadius: 3,
     width: "100%",
     marginBottom: 16,
+    overflow: "hidden",
   },
   oprFill: {
     height: "100%",
-    borderRadius: 2,
+    borderRadius: 3,
   },
   oprMetaRow: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: 16,
   },
   confidenceBadge: {
@@ -911,7 +1182,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 6,
+    borderRadius: 12,
     borderWidth: 1,
   },
   badgeIndicator: {
@@ -922,7 +1193,7 @@ const styles = StyleSheet.create({
   },
   confidenceText: {
     fontSize: 11,
-    fontWeight: "700",
+    fontWeight: "600",
   },
   updatedText: {
     fontSize: 12,
@@ -933,30 +1204,39 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   bandRow: {
-    gap: 4,
+    flexDirection: "column",
   },
   bandLabel: {
     fontSize: 10,
     fontWeight: "700",
     letterSpacing: 0.5,
+    marginBottom: 4,
   },
   bandTitle: {
-    fontSize: 18,
-    fontWeight: "800",
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 4,
   },
   bandDesc: {
     fontSize: 13,
     lineHeight: 18,
   },
   checkInCard: {
-    borderWidth: 1,
     borderRadius: 16,
+    borderWidth: 1,
     padding: 20,
-    marginBottom: 24,
+    marginBottom: 16,
+  },
+  badgeDone: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
   },
   checkInTitle: {
     fontSize: 18,
-    fontWeight: "800",
+    fontWeight: "600",
     marginBottom: 6,
   },
   checkInDesc: {
@@ -967,6 +1247,59 @@ const styles = StyleSheet.create({
   checkInBtn: {
     width: "100%",
   },
+  recommendationCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 18,
+    marginBottom: 16,
+  },
+  recommendationHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  recommendationTag: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  recommendationTagText: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+  },
+  severityBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  severityText: {
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  recommendationTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 6,
+  },
+  recommendationBody: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 12,
+  },
+  specialistActionBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 10,
+    borderRadius: 8,
+    gap: 8,
+  },
+  specialistActionText: {
+    fontSize: 12,
+    fontWeight: "600",
+    flex: 1,
+  },
   sectionHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -975,7 +1308,7 @@ const styles = StyleSheet.create({
   },
   sectionHeading: {
     fontSize: 18,
-    fontWeight: "800",
+    fontWeight: "600",
   },
   seeAllBtn: {
     flexDirection: "row",
@@ -983,70 +1316,85 @@ const styles = StyleSheet.create({
   },
   seeAllText: {
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "500",
   },
   horizontalScrollContent: {
-    paddingRight: 16,
     gap: 12,
-    marginBottom: 24,
+    paddingBottom: 8,
   },
   trendCard: {
-    width: 110,
-    padding: 14,
+    width: 145,
     borderRadius: 12,
     borderWidth: 1,
-    gap: 8,
+    padding: 14,
+    justifyContent: "space-between",
+    height: 108,
   },
   trendCardHeader: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
   },
   trendIndicatorDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 2,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    marginRight: 6,
   },
   trendCategoryText: {
     fontSize: 12,
     fontWeight: "600",
+    flex: 1,
+  },
+  staleBadge: {
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  staleBadgeText: {
+    color: "#EF4444",
+    fontSize: 9,
+    fontWeight: "700",
   },
   trendValueText: {
-    fontSize: 24,
-    fontWeight: "800",
+    fontSize: 22,
+    fontWeight: "700",
+    marginVertical: 4,
   },
   sparkline: {
-    marginTop: 4,
+    alignSelf: "flex-end",
   },
   radarCard: {
-    borderWidth: 1,
     borderRadius: 16,
+    borderWidth: 1,
     padding: 20,
-    marginBottom: 24,
+    marginTop: 16,
+    marginBottom: 16,
   },
   radarHeaderRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
     justifyContent: "space-between",
-    marginBottom: 8,
+    alignItems: "flex-start",
+    marginBottom: 4,
   },
   radarTitle: {
     fontSize: 18,
-    fontWeight: "800",
+    fontWeight: "600",
+    marginBottom: 4,
   },
   radarDesc: {
     fontSize: 13,
     lineHeight: 18,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   radarChartWrapper: {
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 16,
+    marginVertical: 8,
   },
   legendGrid: {
-    gap: 8,
-    paddingHorizontal: 8,
+    marginTop: 16,
+    gap: 12,
   },
   legendRow: {
     flexDirection: "row",
@@ -1056,82 +1404,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     flex: 1,
-    gap: 8,
   },
   legendDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
+    marginRight: 8,
   },
   legendText: {
     fontSize: 13,
     flex: 1,
   },
   legendVal: {
-    fontSize: 13,
-    fontWeight: "700",
-    marginRight: 16,
-  },
-  todayCard: {
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-  },
-  todayGoalRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
-    gap: 8,
-  },
-  goalBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    backgroundColor: "rgba(0, 163, 196, 0.1)",
-    gap: 4,
-  },
-  goalBadgeText: {
-    fontSize: 10,
-    fontWeight: "700",
-    textTransform: "uppercase",
-  },
-  goalSubtext: {
-    fontSize: 11,
-    fontWeight: "600",
-  },
-  todayTitleText: {
-    fontSize: 18,
-    fontWeight: "800",
-    marginBottom: 6,
-  },
-  todayBodyText: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 16,
-  },
-  todayActionsRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  actionBtnFilled: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  actionBtnFilledText: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  actionBtnText: {
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-  },
-  actionBtnTextLabel: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "700",
   },
   openSupportBtn: {
@@ -1144,22 +1429,23 @@ const styles = StyleSheet.create({
   },
   teamCard: {
     width: 160,
-    padding: 16,
     borderRadius: 12,
     borderWidth: 1,
-    gap: 6,
+    padding: 16,
+    height: 140,
+    justifyContent: "space-between",
   },
   teamIconWrapper: {
     width: 36,
     height: 36,
-    borderRadius: 8,
-    alignItems: "center",
+    borderRadius: 18,
     justifyContent: "center",
-    marginBottom: 4,
+    alignItems: "center",
   },
   teamTitle: {
     fontSize: 15,
-    fontWeight: "700",
+    fontWeight: "600",
+    marginTop: 8,
   },
   teamDesc: {
     fontSize: 12,
@@ -1167,7 +1453,7 @@ const styles = StyleSheet.create({
   },
   teamStatusBadge: {
     alignSelf: "flex-start",
-    backgroundColor: "#1F1F23",
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 6,
@@ -1178,17 +1464,16 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   agendaCard: {
-    borderWidth: 1,
     borderRadius: 16,
+    borderWidth: 1,
     paddingHorizontal: 16,
     marginBottom: 24,
   },
   agendaItemRow: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
+    alignItems: "center",
     paddingVertical: 16,
-    borderBottomWidth: 1,
   },
   agendaLeft: {
     flexDirection: "row",
@@ -1199,76 +1484,76 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    alignItems: "center",
     justifyContent: "center",
+    alignItems: "center",
   },
   agendaItemTitle: {
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "600",
+    marginBottom: 2,
   },
   agendaItemSubtitle: {
     fontSize: 12,
-    marginTop: 2,
   },
   agendaBadge: {
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 6,
+    marginLeft: 8,
   },
   agendaBadgeText: {
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: "500",
   },
   footerText: {
-    fontSize: 11,
     textAlign: "center",
+    fontSize: 12,
     marginTop: 8,
   },
   sheetSubtitleText: {
     fontSize: 13,
-    marginTop: -4,
     marginBottom: 16,
   },
   sheetChartCard: {
-    borderWidth: 1,
     borderRadius: 12,
+    borderWidth: 1,
     padding: 16,
     marginBottom: 16,
   },
   sheetChartSvg: {
     width: "100%",
-    height: 80,
+    height: 70,
   },
   sheetChartFooter: {
     fontSize: 11,
+    textAlign: "right",
     marginTop: 8,
   },
   sheetGrid: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
     gap: 8,
-    marginBottom: 16,
+    marginBottom: 20,
   },
   sheetGridCard: {
-    width: "48%",
-    borderWidth: 1,
+    flex: 1,
     borderRadius: 10,
+    borderWidth: 1,
     padding: 12,
-    gap: 4,
   },
   sheetGridLabel: {
     fontSize: 10,
     fontWeight: "700",
     letterSpacing: 0.5,
+    marginBottom: 6,
   },
   sheetGridValueRow: {
     flexDirection: "row",
     alignItems: "center",
+    marginBottom: 2,
   },
   sheetGridVal: {
     fontSize: 16,
-    fontWeight: "800",
+    fontWeight: "700",
   },
   sheetGridSub: {
     fontSize: 10,
@@ -1277,69 +1562,35 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 0.5,
-    marginBottom: 8,
-    textTransform: "uppercase",
+    marginBottom: 10,
   },
   sheetActionList: {
     gap: 8,
-    marginBottom: 16,
+    marginBottom: 20,
   },
   sheetActionItem: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 12,
-    borderRadius: 10,
+    borderRadius: 8,
     borderWidth: 1,
+    padding: 12,
   },
   sheetActionText: {
     fontSize: 13,
     lineHeight: 18,
     flex: 1,
-    fontWeight: "500",
-  },
-  influencesContainer: {
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 20,
-  },
-  influencesHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  influencesHeaderText: {
-    fontSize: 14,
-    fontWeight: "700",
-  },
-  influencesBody: {
-    marginTop: 16,
-    gap: 12,
-  },
-  influenceRow: {
-    flexDirection: "row",
-    alignItems: "center",
   },
   influenceTitle: {
     fontSize: 13,
     fontWeight: "600",
+    marginBottom: 2,
   },
-  influenceSub: {
-    fontSize: 11,
-    marginTop: 2,
-  },
-  influenceDivider: {
-    height: 1,
-    width: "100%",
+  influenceDetail: {
+    fontSize: 12,
   },
   sheetSubmitBtn: {
     width: "100%",
     marginTop: 8,
-  },
-  sheetSubmitBtnSub: {
-    fontSize: 11,
-    textAlign: "center",
-    marginTop: 8,
-    marginBottom: 16,
+    marginBottom: 24,
   },
 });

@@ -9,8 +9,13 @@ export interface UserResponse {
   is_verified: boolean;
   onboarding_completed: boolean;
   onboarding_status: string;
-  onboarding_step: number;
+  onboarding_step: number | string;
   day0_daily_checkin_status: string | null;
+  current_ops_score?: number | null;
+  current_ops_band?: string | null;
+  ops_confidence_level?: string | null;
+  current_component_scores?: Record<string, number> | null;
+  unit_id?: string | null;
   created_at: string;
   updated_at: string;
   last_login_at: string | null;

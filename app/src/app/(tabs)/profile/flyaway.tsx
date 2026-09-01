@@ -86,8 +86,8 @@ export default function FlyAwayKitScreen() {
             {/* Emergency Contacts Section */}
             <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>Emergency contacts</Text>
             <View style={[styles.listContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
-              {data.contacts.map((item, idx) => {
-                const isLast = idx === data.contacts.length - 1;
+              {(data.contacts || []).map((item: any, idx: number) => {
+                const isLast = idx === (data.contacts?.length || 0) - 1;
                 return (
                   <View
                     key={item.id || idx}
@@ -103,14 +103,14 @@ export default function FlyAwayKitScreen() {
                       <View style={styles.textContainer}>
                         <Text style={[styles.itemTitle, { color: theme.colors.text }]}>{item.role}</Text>
                         <Text style={[styles.itemSubtitle, { color: theme.colors.textSecondary }]}>
-                          {item.phone_number} {item.notes ? `· ${item.notes}` : ""}
+                          {item.phone_number || item.phone} {item.notes ? `· ${item.notes}` : ""}
                         </Text>
                       </View>
                     </View>
 
                     {/* Right call action */}
                     <Pressable
-                      onPress={() => handleCallPress(item.phone_number)}
+                      onPress={() => handleCallPress(item.phone_number || item.phone)}
                       style={[styles.callBadge, { backgroundColor: "#27272A" }]}
                     >
                       <Text style={[styles.callBadgeText, { color: theme.colors.text }]}>Tap to call</Text>
@@ -121,28 +121,40 @@ export default function FlyAwayKitScreen() {
             </View>
 
             {/* Rehab Status section */}
-            <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>Rehab status · {data.rehab_status_lines.length} lines</Text>
+            <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
+              Rehab status · {data.rehab_status_lines?.length || 0} lines
+            </Text>
             <View style={styles.rehabTextContainer}>
-              {data.rehab_status_lines.map((line, idx) => (
-                <Text key={idx} style={[styles.rehabTextLine, { color: theme.colors.text }]}>{line}</Text>
-              ))}
+              {(data.rehab_status_lines || [data.rehab_status?.phase_label || "No active rehab restrictions"]).map(
+                (line: string, idx: number) => (
+                  <Text key={idx} style={[styles.rehabTextLine, { color: theme.colors.text }]}>
+                    {line}
+                  </Text>
+                )
+              )}
             </View>
 
             {/* Assigned Provider section */}
-            <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>Assigned provider</Text>
-            <View style={styles.providerContainer}>
-              <Text style={[styles.providerName, { color: theme.colors.text }]}>
-                {data.assigned_provider.name} · {data.assigned_provider.role}
-              </Text>
-              <Text style={[styles.providerPhone, { color: theme.colors.textSecondary }]}>
-                {data.assigned_provider.phone_number}
-              </Text>
-            </View>
+            {data.assigned_provider && (
+              <>
+                <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>Assigned provider</Text>
+                <View style={styles.providerContainer}>
+                  <Text style={[styles.providerName, { color: theme.colors.text }]}>
+                    {data.assigned_provider.name} {data.assigned_provider.role ? `· ${data.assigned_provider.role}` : ""}
+                  </Text>
+                  {data.assigned_provider.phone_number && (
+                    <Text style={[styles.providerPhone, { color: theme.colors.textSecondary }]}>
+                      {data.assigned_provider.phone_number}
+                    </Text>
+                  )}
+                </View>
+              </>
+            )}
 
             {/* Bottom published date */}
             <View style={styles.footerContainer}>
               <Text style={[styles.footerText, { color: theme.colors.textSecondary }]}>
-                Effective template · locked-on-publish. Last published {formatDate(data.last_published_at)}.
+                Effective template · locked-on-publish. Last published {formatDate(data.last_published_at || "")}.
               </Text>
             </View>
           </>
