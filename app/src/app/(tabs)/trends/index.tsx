@@ -43,7 +43,7 @@ export default function TrendsScreen() {
   // Latest OPS metrics from trends
   const latestOps = opsSeries.length > 0 ? opsSeries[opsSeries.length - 1] : null;
   const latestOpsScore = latestOps?.ops_score;
-  const latestOpsBand = latestOps?.ops_band || "Ready";
+  const latestOpsBand = latestOps?.ops_band || "--";
   const latestOpsConfidence = latestOps?.confidence_level || "medium";
 
   // Detail Sheet State
@@ -416,7 +416,7 @@ export default function TrendsScreen() {
         ) : (
           <>
             <Text style={[styles.sheetSubtitleText, { color: theme.colors.textSecondary }]}>
-              Current score {driverDetail?.current_score ?? 75} · band {driverDetail?.score_band || "Ready"}
+              Current score {driverDetail?.current_score ?? "--"} · band {driverDetail?.score_band || "--"}
             </Text>
 
             {/* Grid of Metric Cards */}

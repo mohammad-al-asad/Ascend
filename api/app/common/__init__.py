@@ -1,1 +1,0 @@
-"""Shared application building blocks."""
