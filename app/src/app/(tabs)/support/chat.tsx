@@ -249,11 +249,12 @@ export default function ChatScreen() {
       formData.append("body", textToSend);
 
       if (fileToSend) {
-        formData.append("file", {
-          uri: fileToSend.uri,
-          name: fileToSend.name,
-          type: fileToSend.mimeType || "application/octet-stream",
-        } as any);
+        // Expo's fetch polyfill only accepts real Blob/File parts, not RN's
+        // classic {uri, name, type} shorthand - read the picked file into a
+        // Blob before attaching it. RN's Blob polyfill can't construct from a
+        // raw ArrayBuffer, so get the Blob straight from fetch() instead.
+        const fileBlob = await (await fetch(fileToSend.uri)).blob();
+        formData.append("file", fileBlob, fileToSend.name);
       }
 
       try {
