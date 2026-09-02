@@ -5,25 +5,35 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../../utils/useTheme";
 import { CustomHeader } from "../../../components/ui/CustomHeader";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useGetWorkoutSummaryQuery } from "../../../redux/api/workoutsApi";
+
+const ACTIVITY_API_TO_LABEL: Record<string, string> = {
+  strength: "Strength",
+  cardio: "Cardio",
+  mobility: "Mobility",
+  recovery: "Recovery",
+  other: "Other",
+};
 
 export default function WorkoutSavedScreen() {
   const theme = useTheme();
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { data: summary } = useGetWorkoutSummaryQuery();
 
-  // Retrieve parameters passed from log-workout form
+  // Real fields, passed straight through from the just-created record.
   const {
-    date = "2026-07-18",
-    activityType = "Strength",
-    customTitle = "",
-    duration = "23",
-    rpe = "2",
-    completion = "Completed",
-    notes = "ssds",
-    rating = "3",
+    activity_date = "",
+    activity_type = "strength",
+    custom_title = "",
+    duration_minutes = "0",
+    intensity = "1",
+    completion_status = "completed",
+    notes = "",
+    session_rating = "",
+    reported_limitation = "false",
   } = params;
 
-  // Format date helper: "2026-07-18" -> "18 Jul 2026"
   const formatDate = (dateStr: string) => {
     try {
       const [year, month, day] = dateStr.split("-");
@@ -35,19 +45,13 @@ export default function WorkoutSavedScreen() {
     }
   };
 
-  const formattedDate = formatDate(date as string);
-  const workoutTitle = (activityType === "Others" && customTitle) ? (customTitle as string) : (activityType as string);
+  const formattedDate = formatDate(activity_date as string);
+  const activityLabel = ACTIVITY_API_TO_LABEL[activity_type as string] ?? (activity_type as string);
+  const workoutTitle = activity_type === "other" && custom_title ? (custom_title as string) : activityLabel;
+  const isFlagged = reported_limitation === "true";
 
   const handleBackToWorkouts = () => {
-    // Navigate back to workouts list and pass the workout log parameters to prepend
-    router.replace({
-      pathname: "/profile/workouts",
-      params: {
-        title: workoutTitle,
-        subtitle: `${formattedDate} · ${duration} min · RPE ${rpe} · ${notes || "No notes"}`,
-        category: activityType as string,
-      },
-    });
+    router.replace("/profile/workouts" as any);
   };
 
   const handleLogAnother = () => {
@@ -84,7 +88,7 @@ export default function WorkoutSavedScreen() {
           </Text>
           <Text style={[styles.mainTitle, { color: theme.colors.text }]}>Saved to your log</Text>
           <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
-            This entry is added to your workout log. Refresh clears it (prototype, in-memory only).
+            This entry is saved to your real workout log.
           </Text>
         </View>
 
@@ -93,10 +97,10 @@ export default function WorkoutSavedScreen() {
           <Text style={[styles.cardHeaderTitle, { color: theme.colors.textSecondary }]}>WORKOUT</Text>
           <Text style={[styles.workoutTitleText, { color: theme.colors.text }]}>{workoutTitle}</Text>
           <Text style={[styles.workoutSubtitleText, { color: theme.colors.textSecondary }]}>
-            Today · {formattedDate} · {duration} min · RPE {rpe} / 5
+            {`${formattedDate} · ${duration_minutes} min · RPE ${intensity} / 5`}
           </Text>
           <Text style={[styles.workoutSubtitleText, { color: theme.colors.textSecondary }]}>
-            {completion} · Rating {rating ? `${rating} / 5` : "— / 5"}
+            {`${completion_status === "completed" ? "Completed" : "Partial"} · Rating ${session_rating ? `${session_rating} / 5` : "— / 5"}`}
           </Text>
         </View>
 
@@ -104,13 +108,20 @@ export default function WorkoutSavedScreen() {
         <View style={[styles.cardContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
           <Text style={[styles.cardHeaderTitle, { color: theme.colors.textSecondary }]}>NOTES (YOU WROTE)</Text>
           <Text style={[styles.notesText, { color: theme.colors.text }]}>{notes || "—"}</Text>
+          {isFlagged && (
+            <Text style={[styles.flagText, { color: theme.colors.dangerText }]}>
+              {"A limitation was detected in your notes — this was flagged for your SCS to review."}
+            </Text>
+          )}
         </View>
 
         {/* Card 3: ADHERENCE STATS */}
         <View style={[styles.cardContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
           <Text style={[styles.cardHeaderTitle, { color: theme.colors.textSecondary }]}>ADHERENCE</Text>
           <Text style={[styles.adherenceText, { color: theme.colors.text }]}>
-            5 of last 6 planned workouts completed · streak 2 weeks.
+            {summary
+              ? `${summary.recent_adherence_label} · streak ${summary.current_streak_weeks} week${summary.current_streak_weeks === 1 ? "" : "s"}.`
+              : "Loading your adherence…"}
           </Text>
         </View>
 
@@ -118,7 +129,7 @@ export default function WorkoutSavedScreen() {
         <View style={[styles.cardContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder, marginBottom: 32 }]}>
           <Text style={[styles.cardHeaderTitle, { color: theme.colors.textSecondary }]}>What's next</Text>
           <Text style={[styles.nextDescription, { color: theme.colors.textSecondary }]}>
-            This entry is added to your recent-workouts list. Limitations and rating are surfaced on the Workouts screen.
+            This entry is added to your recent-workouts list.
           </Text>
 
           <View style={styles.buttonsContainer}>
@@ -142,7 +153,7 @@ export default function WorkoutSavedScreen() {
         {/* Footer */}
         <View style={styles.footerContainer}>
           <Text style={[styles.footerCode, { color: theme.colors.textTertiary }]}>
-            Trace id M-055 · v1 prototype
+            Trace id M-055
           </Text>
         </View>
       </ScrollView>
@@ -235,6 +246,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
     fontWeight: "500",
+  },
+  flagText: {
+    fontSize: 12,
+    lineHeight: 17,
+    fontWeight: "600",
+    marginTop: 8,
   },
   adherenceText: {
     fontSize: 14,

@@ -258,6 +258,83 @@ export interface DriverDetailResponse {
   support_route?: string;
 }
 
+export interface DriverSummaryItem {
+  readiness_component: string;
+  signal_label: string;
+  average_score: number | null;
+}
+
+export interface StandoutInsight {
+  key: string;
+  severity: "positive" | "watch" | "notable";
+  title: string;
+  body: string;
+}
+
+export interface WellnessReportResponse {
+  period_label: string;
+  average_ops: number | null;
+  average_ops_delta: number | null;
+  band: string;
+  band_narrative: string;
+  driver_summary: DriverSummaryItem[];
+  standout_insights: StandoutInsight[];
+  footer_note: string;
+}
+
+export interface ThirtyDayRecapItem {
+  readiness_component: string;
+  signal_label: string;
+  current_score: number | null;
+  weight: number;
+  has_daily_trend: boolean;
+  trend_points: number[];
+  delta_vs_prior_period: number | null;
+}
+
+export interface DailyCheckinRecap {
+  days_logged: number;
+  days_total: number;
+  cadence_percent: number;
+}
+
+export interface ProviderNote {
+  sender_name: string | null;
+  sender_role: string;
+  body: string;
+  created_at: string;
+}
+
+export interface MonthlyReviewResponse {
+  review_status: string;
+  period_label: string;
+  period_start: string;
+  period_end: string;
+  generated_at: string;
+  thirty_day_recap: ThirtyDayRecapItem[];
+  average_ops_score: number | null;
+  average_ops_delta: number | null;
+  daily_checkins: DailyCheckinRecap;
+  workout_summary: {
+    range_days: number;
+    total_sessions: number;
+    completed_sessions: number;
+    missed_sessions: number;
+    by_activity_type: Record<string, number>;
+    total_duration_minutes: number;
+    recent_adherence_label: string;
+    current_streak_weeks: number;
+  };
+  oft_status: {
+    current_status: string;
+    latest_pass_fail: string | null;
+    latest_test_date: string | null;
+    next_scheduled_date: string | null;
+    next_scheduled_relative: string | null;
+  };
+  provider_notes: ProviderNote[];
+}
+
 export interface ActiveRecommendation {
   id: string;
   readiness_component: string;
@@ -392,12 +469,12 @@ export const checkinApi = baseApi.injectEndpoints({
       providesTags: ["Dashboard"],
     }),
 
-    getWellnessReport: builder.query<any, void>({
+    getWellnessReport: builder.query<WellnessReportResponse, void>({
       query: () => "/dashboards/wellness-report",
       providesTags: ["Dashboard"],
     }),
 
-    getMonthlyReview: builder.query<any, void>({
+    getMonthlyReview: builder.query<MonthlyReviewResponse, void>({
       query: () => "/dashboards/monthly-review",
       providesTags: ["Dashboard"],
     }),

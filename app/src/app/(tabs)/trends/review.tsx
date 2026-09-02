@@ -1,82 +1,35 @@
 import React from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../../utils/useTheme";
 import { CustomHeader } from "../../../components/ui/CustomHeader";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useGetMonthlyReviewQuery } from "../../../redux/api/checkinApi";
 
-interface RecapItem {
-  label: string;
-  trend: string;
-  trendColor: string;
-  score: number;
-  dotColor: string;
+// Cosmetic only - the backend doesn't send colors.
+const COMPONENT_DOT_COLORS: Record<string, string> = {
+  "Physical Readiness": "#00A3C4",
+  "Sleep Readiness": "#8E8E93",
+  "Mental Readiness": "#60A5FA",
+  "Nutritional Readiness": "#F59E0B",
+  "Spiritual Readiness": "#EAB308",
+};
+
+function trendArrow(delta: number | null): { text: string; color: string } {
+  if (delta === null) return { text: "—", color: "#8E8E93" };
+  if (delta > 0) return { text: `↗ +${Math.round(delta)}`, color: "#00A3C4" };
+  if (delta < 0) return { text: `↘ ${Math.round(delta)}`, color: "#EF4444" };
+  return { text: "→ ±0", color: "#8E8E93" };
 }
-
-const RECAP_ITEMS: RecapItem[] = [
-  { label: "Physical", trend: "↗ +4", trendColor: "#00A3C4", score: 82, dotColor: "#00A3C4" },
-  { label: "Sleep", trend: "→ ±0", trendColor: "#8E8E93", score: 74, dotColor: "#8E8E93" },
-  { label: "Mental", trend: "↗ +6", trendColor: "#00A3C4", score: 75, dotColor: "#60A5FA" },
-  { label: "Nutritional", trend: "↗ +2", trendColor: "#00A3C4", score: 71, dotColor: "#F59E0B" },
-  { label: "Spiritual", trend: "↗ +1", trendColor: "#00A3C4", score: 84, dotColor: "#EAB308" },
-];
-
-interface ReviewDetailRow {
-  id: string;
-  icon: string;
-  iconColor: string;
-  title: string;
-  subtitle: string;
-  badge: string;
-}
-
-const REVIEW_DETAILS: ReviewDetailRow[] = [
-  {
-    id: "d1",
-    icon: "calendar-outline",
-    iconColor: "#8E8E93",
-    title: "Daily check-ins · 30 days",
-    subtitle: "28 of 30 days · 93% cadence",
-    badge: "Complete",
-  },
-  {
-    id: "d2",
-    icon: "fitness-outline",
-    iconColor: "#8E8E93",
-    title: "Workouts logged",
-    subtitle: "21 sessions · 7 strength · 14 conditioning",
-    badge: "On plan",
-  },
-  {
-    id: "d3",
-    icon: "shield-checkmark-outline",
-    iconColor: "#8E8E93",
-    title: "OFT currency",
-    subtitle: "Current · next test 22 Aug 2026",
-    badge: "Current",
-  },
-  {
-    id: "d4",
-    icon: "folder-open-outline",
-    iconColor: "#8E8E93",
-    title: "Medical records added",
-    subtitle: "1 MFR upload · PT/IM review complete",
-    badge: "Reviewed",
-  },
-  {
-    id: "d5",
-    icon: "chatbubble-outline",
-    iconColor: "#8E8E93",
-    title: "PT/IM notes for you",
-    subtitle: "2 notes · continue current plan · follow up at next OFT",
-    badge: "2 new",
-  },
-];
 
 export default function MonthlyReviewScreen() {
   const theme = useTheme();
   const router = useRouter();
+
+  const { data, isLoading, isError } = useGetMonthlyReviewQuery();
+
+  const deltaIsUp = (data?.average_ops_delta ?? 0) >= 0;
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
@@ -101,151 +54,232 @@ export default function MonthlyReviewScreen() {
         {/* Title Block */}
         <View style={styles.titleBlock}>
           <Text style={[styles.sectionTag, { color: theme.colors.textSecondary }]}>
-            TRENDS · PR-M-063
+            {data?.period_label ? `TRENDS · ${data.period_label.toUpperCase()}` : "TRENDS"}
           </Text>
           <Text style={[styles.titleText, { color: theme.colors.text }]}>
             Monthly review
           </Text>
           <Text style={[styles.descText, { color: theme.colors.textSecondary }]}>
-            {"Your locked monthly review for July 2026. Generated 28 July · signed off by PT Knox (USR-7101). Read-only on mobile; full editable report lives in the governed workspace."}
+            {data
+              ? `A live summary of your last 30 days (${data.period_start} to ${data.period_end}). Updates automatically as new data comes in — it isn't signed off or locked.`
+              : "A live summary of your last 30 days."}
           </Text>
         </View>
 
-        {/* Card 1: Review Status */}
-        <View style={[styles.cardContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
-          <Text style={[styles.cardTag, { color: theme.colors.textTertiary }]}>
-            REVIEW STATUS
-          </Text>
-          <View style={styles.statusValRow}>
-            <View style={[styles.statusIndicatorDot, { backgroundColor: theme.colors.primary }]} />
-            <Text style={[styles.statusValText, { color: theme.colors.text }]}>
-              Ready to view
-            </Text>
+        {isLoading && (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator color={theme.colors.primary} />
           </View>
-          <Text style={[styles.statusDescText, { color: theme.colors.textSecondary }]}>
-            {"Available from 28 July 2026 · 09:00 UTC. The review is locked — no edits from this surface. Reach out to PT Knox to discuss any item."}
+        )}
+
+        {isError && !isLoading && (
+          <Text style={[styles.errorText, { color: theme.colors.dangerText }]}>
+            Could not load your monthly review. Pull to refresh or try again shortly.
           </Text>
-        </View>
+        )}
 
-        {/* Section: 30-day recap */}
-        <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
-          30-day recap
-        </Text>
+        {!isLoading && !isError && data && (
+          <>
+            {/* Card 1: Review Status */}
+            <View style={[styles.cardContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
+              <Text style={[styles.cardTag, { color: theme.colors.textTertiary }]}>
+                REVIEW STATUS
+              </Text>
+              <View style={styles.statusValRow}>
+                <View style={[styles.statusIndicatorDot, { backgroundColor: theme.colors.primary }]} />
+                <Text style={[styles.statusValText, { color: theme.colors.text }]}>
+                  Draft summary
+                </Text>
+              </View>
+              <Text style={[styles.statusDescText, { color: theme.colors.textSecondary }]}>
+                {"This is an on-demand summary of your own data — not a signed or locked report. Message your team if you have questions about any item."}
+              </Text>
+            </View>
 
-        {/* Card 2: 30-day recap grid */}
-        <View style={[styles.cardContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
-          <View style={styles.recapGrid}>
-            {RECAP_ITEMS.map((item, idx) => (
-              <View key={idx} style={styles.recapGridItem}>
-                <View style={styles.recapItemLeft}>
-                  <View style={[styles.colorDot, { backgroundColor: item.dotColor }]} />
-                  <Text style={[styles.recapLabel, { color: theme.colors.text }]}>
-                    {item.label}
-                  </Text>
+            {/* Section: 30-day recap */}
+            <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
+              30-day recap
+            </Text>
+
+            {/* Card 2: 30-day recap grid */}
+            <View style={[styles.cardContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
+              <View style={styles.recapGrid}>
+                {data.thirty_day_recap.map((item) => {
+                  const trend = trendArrow(item.delta_vs_prior_period);
+                  return (
+                    <View key={item.readiness_component} style={styles.recapGridItem}>
+                      <View style={styles.recapItemLeft}>
+                        <View
+                          style={[
+                            styles.colorDot,
+                            { backgroundColor: COMPONENT_DOT_COLORS[item.readiness_component] ?? theme.colors.primary },
+                          ]}
+                        />
+                        <Text style={[styles.recapLabel, { color: theme.colors.text }]}>
+                          {item.signal_label}
+                        </Text>
+                      </View>
+                      <View style={styles.recapItemRight}>
+                        <Text style={[styles.recapTrend, { color: trend.color }]}>
+                          {trend.text}
+                        </Text>
+                        <Text style={[styles.recapScore, { color: theme.colors.text }]}>
+                          {item.current_score !== null ? Math.round(item.current_score) : "—"}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+              <Text style={[styles.recapFooterText, { color: theme.colors.textSecondary }]}>
+                {data.average_ops_score !== null
+                  ? `Average OPS · ${Math.round(data.average_ops_score)}${
+                      data.average_ops_delta !== null
+                        ? ` · Δ ${deltaIsUp ? "+" : ""}${Math.round(data.average_ops_delta)} vs prior 30 days`
+                        : ""
+                    }`
+                  : "Not enough data yet for an average OPS this period."}
+              </Text>
+            </View>
+
+            {/* Section: In this review */}
+            <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
+              In this review
+            </Text>
+
+            {/* Card 3: In this review checklist */}
+            <View style={[styles.cardContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
+              <View
+                style={[styles.checklistRow, { borderBottomWidth: 1, borderBottomColor: theme.colors.cardBorder }]}
+              >
+                <View style={styles.checklistRowLeft}>
+                  <View style={[styles.checklistIconCircle, { backgroundColor: "#1C1F26" }]}>
+                    <Ionicons name="calendar-outline" size={16} color="#8E8E93" />
+                  </View>
+                  <View style={styles.checklistTextCol}>
+                    <Text style={[styles.checklistTitle, { color: theme.colors.text }]}>
+                      Daily check-ins · 30 days
+                    </Text>
+                    <Text style={[styles.checklistSubtitle, { color: theme.colors.textSecondary }]}>
+                      {`${data.daily_checkins.days_logged} of ${data.daily_checkins.days_total} days · ${Math.round(data.daily_checkins.cadence_percent)}% cadence`}
+                    </Text>
+                  </View>
                 </View>
-                <View style={styles.recapItemRight}>
-                  <Text style={[styles.recapTrend, { color: item.trendColor }]}>
-                    {item.trend}
-                  </Text>
-                  <Text style={[styles.recapScore, { color: theme.colors.text }]}>
-                    {item.score}
+                <View style={[styles.outcomeBadge, { backgroundColor: "#27272A" }]}>
+                  <Text style={[styles.outcomeBadgeText, { color: theme.colors.text }]}>
+                    {data.daily_checkins.cadence_percent >= 90 ? "On cadence" : "Below cadence"}
                   </Text>
                 </View>
               </View>
-            ))}
-          </View>
-          <Text style={[styles.recapFooterText, { color: theme.colors.textSecondary }]}>
-            {"Average OPS · 77 · Δ +3 vs prior 30 days. Driver hues viz-only; scores are illustrative (PR-M-022 prototype)."}
-          </Text>
-        </View>
 
-        {/* Section: In this review */}
-        <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
-          In this review
-        </Text>
-
-        {/* Card 3: In this review checklist */}
-        <View style={[styles.cardContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
-          {REVIEW_DETAILS.map((item, idx) => {
-            const isLast = idx === REVIEW_DETAILS.length - 1;
-            return (
               <View
-                key={item.id}
+                style={[styles.checklistRow, { borderBottomWidth: 1, borderBottomColor: theme.colors.cardBorder }]}
+              >
+                <View style={styles.checklistRowLeft}>
+                  <View style={[styles.checklistIconCircle, { backgroundColor: "#1C1F26" }]}>
+                    <Ionicons name="fitness-outline" size={16} color="#8E8E93" />
+                  </View>
+                  <View style={styles.checklistTextCol}>
+                    <Text style={[styles.checklistTitle, { color: theme.colors.text }]}>
+                      Workouts logged
+                    </Text>
+                    <Text style={[styles.checklistSubtitle, { color: theme.colors.textSecondary }]}>
+                      {`${data.workout_summary.total_sessions} sessions · ${data.workout_summary.completed_sessions} completed · ${data.workout_summary.missed_sessions} missed`}
+                    </Text>
+                  </View>
+                </View>
+                <View style={[styles.outcomeBadge, { backgroundColor: "#27272A" }]}>
+                  <Text style={[styles.outcomeBadgeText, { color: theme.colors.text }]}>
+                    {data.workout_summary.recent_adherence_label}
+                  </Text>
+                </View>
+              </View>
+
+              <View
                 style={[
                   styles.checklistRow,
-                  {
-                    borderBottomWidth: isLast ? 0 : 1,
-                    borderBottomColor: theme.colors.cardBorder,
-                  },
+                  data.provider_notes.length > 0
+                    ? { borderBottomWidth: 1, borderBottomColor: theme.colors.cardBorder }
+                    : { borderBottomWidth: 0 },
                 ]}
               >
                 <View style={styles.checklistRowLeft}>
                   <View style={[styles.checklistIconCircle, { backgroundColor: "#1C1F26" }]}>
-                    <Ionicons name={item.icon as any} size={16} color={item.iconColor} />
+                    <Ionicons name="shield-checkmark-outline" size={16} color="#8E8E93" />
                   </View>
                   <View style={styles.checklistTextCol}>
                     <Text style={[styles.checklistTitle, { color: theme.colors.text }]}>
-                      {item.title}
+                      OFT currency
                     </Text>
                     <Text style={[styles.checklistSubtitle, { color: theme.colors.textSecondary }]}>
-                      {item.subtitle}
+                      {data.oft_status.next_scheduled_relative
+                        ? `Next test ${data.oft_status.next_scheduled_relative}`
+                        : data.oft_status.latest_test_date
+                          ? `Last test ${data.oft_status.latest_test_date}`
+                          : "No OFT record yet"}
                     </Text>
                   </View>
                 </View>
-
                 <View style={[styles.outcomeBadge, { backgroundColor: "#27272A" }]}>
                   <Text style={[styles.outcomeBadgeText, { color: theme.colors.text }]}>
-                    {item.badge}
+                    {data.oft_status.current_status.replace("_", " ")}
                   </Text>
                 </View>
               </View>
-            );
-          })}
-        </View>
 
-        {/* Card 4: Locked on publish warning */}
-        <View style={[styles.cardContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
-          <View style={styles.lockHeader}>
-            <Ionicons name="lock-closed-outline" size={16} color={theme.colors.textSecondary} style={{ marginRight: 6 }} />
-            <Text style={[styles.lockTag, { color: theme.colors.textSecondary }]}>
-              Read-only
+              {data.provider_notes.length > 0 && (
+                <View style={[styles.checklistRow, { borderBottomWidth: 0 }]}>
+                  <View style={styles.checklistRowLeft}>
+                    <View style={[styles.checklistIconCircle, { backgroundColor: "#1C1F26" }]}>
+                      <Ionicons name="chatbubble-outline" size={16} color="#8E8E93" />
+                    </View>
+                    <View style={styles.checklistTextCol}>
+                      <Text style={[styles.checklistTitle, { color: theme.colors.text }]}>
+                        Notes from your team
+                      </Text>
+                      <Text style={[styles.checklistSubtitle, { color: theme.colors.textSecondary }]}>
+                        {data.provider_notes[0].body}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={[styles.outcomeBadge, { backgroundColor: "#27272A" }]}>
+                    <Text style={[styles.outcomeBadgeText, { color: theme.colors.text }]}>
+                      {`${data.provider_notes.length} new`}
+                    </Text>
+                  </View>
+                </View>
+              )}
+            </View>
+
+            {/* Bottom Button Actions */}
+            <View style={styles.actionsRow}>
+              <Pressable
+                onPress={() => router.back()}
+                style={[styles.outlineBtn, { borderColor: theme.colors.cardBorder }]}
+              >
+                <Ionicons name="arrow-back" size={16} color={theme.colors.text} style={{ marginRight: 6 }} />
+                <Text style={[styles.outlineBtnText, { color: theme.colors.text }]}>
+                  Back to trends
+                </Text>
+              </Pressable>
+
+              <Pressable
+                onPress={() => router.push("/support" as any)}
+                style={[styles.filledBtn, { backgroundColor: "#27272A" }]}
+              >
+                <Ionicons name="chatbubble-ellipses-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.filledBtnText}>
+                  Open support thread
+                </Text>
+              </Pressable>
+            </View>
+
+            {/* Footer */}
+            <Text style={[styles.footerNotice, { color: theme.colors.textTertiary }]}>
+              {`Personal monthly review · draft · generated ${new Date(data.generated_at).toLocaleString()}`}
             </Text>
-          </View>
-          <Text style={[styles.lockTitle, { color: theme.colors.text }]}>
-            Reviews are locked on publish
-          </Text>
-          <Text style={[styles.lockDesc, { color: theme.colors.textSecondary }]}>
-            {"Once a monthly review is signed off by your PT/IM, the contents are immutable. Any annotation, correction, or follow-up question must go through the support thread or the next check-in. This preserves the audit chain — every figure on this page corresponds to a specific event row in the governed log."}
-          </Text>
-        </View>
-
-        {/* Bottom Button Actions */}
-        <View style={styles.actionsRow}>
-          <Pressable
-            onPress={() => router.back()}
-            style={[styles.outlineBtn, { borderColor: theme.colors.cardBorder }]}
-          >
-            <Ionicons name="arrow-back" size={16} color={theme.colors.text} style={{ marginRight: 6 }} />
-            <Text style={[styles.outlineBtnText, { color: theme.colors.text }]}>
-              Back to trends
-            </Text>
-          </Pressable>
-
-          <Pressable
-            onPress={() => router.push("/support" as any)}
-            style={[styles.filledBtn, { backgroundColor: "#27272A" }]}
-          >
-            <Ionicons name="chatbubble-ellipses-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-            <Text style={styles.filledBtnText}>
-              Open support thread
-            </Text>
-          </Pressable>
-        </View>
-
-        {/* Privacy Notice Footer */}
-        <Text style={[styles.footerNotice, { color: theme.colors.textTertiary }]}>
-          {"Monthly review · PR-M-063 · Locked summary · k-anonymity (k ≥ 5) · audit chain retained"}
-        </Text>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -275,6 +309,16 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: 16,
     paddingBottom: 40,
+  },
+  loadingBox: {
+    paddingVertical: 40,
+    alignItems: "center",
+  },
+  errorText: {
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: "center",
+    paddingVertical: 24,
   },
   titleBlock: {
     marginBottom: 20,
@@ -418,26 +462,6 @@ const styles = StyleSheet.create({
   outcomeBadgeText: {
     fontSize: 12,
     fontWeight: "700",
-  },
-  lockHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-  },
-  lockTag: {
-    fontSize: 10,
-    fontWeight: "700",
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
-  },
-  lockTitle: {
-    fontSize: 16,
-    fontWeight: "800",
-    marginBottom: 6,
-  },
-  lockDesc: {
-    fontSize: 13,
-    lineHeight: 18,
   },
   actionsRow: {
     flexDirection: "row",

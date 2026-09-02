@@ -22,6 +22,28 @@ export interface MedicalRecordResponse {
   reviewed_at?: string;
 }
 
+export interface MedicalRecordAccessLogEntry {
+  actor_name: string;
+  actor_role: string;
+  action: string;
+  note: string;
+  created_at: string;
+}
+
+// Real shape of GET /records/uploads/{id} - richer than the list/upload
+// response above (MedicalRecordResponse), includes the real access log.
+export interface MedicalRecordDetailResponse extends MedicalRecordResponse {
+  uploaded_by_name: string | null;
+  reviewed_by_name: string | null;
+  access_expires_at: string | null;
+  sensitivity_level: string;
+  source: string;
+  consent_status: string;
+  approved_access_level: string[];
+  is_redacted: boolean;
+  access_log: MedicalRecordAccessLogEntry[];
+}
+
 export interface DataUseDetail {
   title: string;
   detail: string;
@@ -94,7 +116,7 @@ export const recordsApi = baseApi.injectEndpoints({
         params: arg,
       }),
     }),
-    getUploadDetail: builder.query<MedicalRecordResponse, string>({
+    getUploadDetail: builder.query<MedicalRecordDetailResponse, string>({
       query: (id) => `/records/uploads/${id}`,
     }),
     getDataUseSummary: builder.query<DataUseSummaryResponse, void>({
