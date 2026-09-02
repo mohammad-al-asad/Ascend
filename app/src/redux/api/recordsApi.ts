@@ -108,16 +108,27 @@ export const recordsApi = baseApi.injectEndpoints({
         url: "/records/uploads",
         method: "POST",
         body: formData,
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
       }),
+      invalidatesTags: [{ type: "Records", id: "LIST" }],
     }),
     getUploads: builder.query<MedicalRecordResponse[], { document_type?: string; search?: string }>({
       query: (arg) => ({
         url: "/records/uploads",
         params: arg,
       }),
+      // Real response shape is {records: [...]}, not a bare array.
+      transformResponse: (response: { records: MedicalRecordResponse[] }) => response.records,
+      providesTags: (result) =>
+        result
+          ? [...result.map((r) => ({ type: "Records" as const, id: r.id })), { type: "Records" as const, id: "LIST" }]
+          : [{ type: "Records" as const, id: "LIST" }],
     }),
     getUploadDetail: builder.query<MedicalRecordDetailResponse, string>({
       query: (id) => `/records/uploads/${id}`,
+      providesTags: (_result, _error, id) => [{ type: "Records", id }],
     }),
     getDataUseSummary: builder.query<DataUseSummaryResponse, void>({
       query: () => "/records/data-use-summary",

@@ -69,12 +69,13 @@ export default function AddRecordScreen() {
     const formData = new FormData();
     formData.append("document_type", mapDocType(docType));
     formData.append("access_reason", accessReason);
-    
-    formData.append("file", {
-      uri: attachedFile.uri,
-      name: attachedFile.name,
-      type: attachedFile.mimeType || "application/octet-stream",
-    } as any);
+
+    // Expo's fetch polyfill only accepts real Blob/File parts, not RN's
+    // classic {uri, name, type} shorthand - read the picked file into a
+    // Blob before attaching it. RN's Blob polyfill can't construct from a
+    // raw ArrayBuffer, so get the Blob straight from fetch() instead.
+    const fileBlob = await (await fetch(attachedFile.uri)).blob();
+    formData.append("file", fileBlob, attachedFile.name);
 
     try {
       const res = await uploadRecord(formData).unwrap();
