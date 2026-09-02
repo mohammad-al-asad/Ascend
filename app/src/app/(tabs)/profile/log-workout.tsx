@@ -1,24 +1,38 @@
 import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Platform } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, Platform, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../../utils/useTheme";
 import { CustomHeader } from "../../../components/ui/CustomHeader";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useLogWorkoutMutation } from "../../../redux/api/workoutsApi";
+
+const ACTIVITY_UI_TO_API: Record<string, string> = {
+  Strength: "strength",
+  Cardio: "cardio",
+  Mobility: "mobility",
+  Others: "other",
+};
+
+function todayIso(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 export default function LogWorkoutScreen() {
   const theme = useTheme();
   const router = useRouter();
+  const [logWorkout, { isLoading }] = useLogWorkoutMutation();
 
   // Form states
-  const [dateStr, setDateStr] = useState("2026-07-18");
+  const [dateStr, setDateStr] = useState(todayIso());
   const [activityType, setActivityType] = useState("Strength");
-  const [customTitle, setCustomTitle] = useState("sfs");
-  const [duration, setDuration] = useState("23");
+  const [customTitle, setCustomTitle] = useState("");
+  const [duration, setDuration] = useState("");
   const [rpeRating, setRpeRating] = useState(2);
   const [completion, setCompletion] = useState("Completed");
-  const [notes, setNotes] = useState("ssds");
+  const [notes, setNotes] = useState("");
   const [sessionRating, setSessionRating] = useState(3);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // UI state
   const [showDropdown, setShowDropdown] = useState(false);
@@ -30,23 +44,41 @@ export default function LogWorkoutScreen() {
     setShowDropdown(false);
   };
 
-  const handleSave = () => {
-    router.push({
-      pathname: "/profile/workout-saved",
-      params: {
-        date: dateStr,
-        activityType,
-        customTitle: activityType === "Others" ? customTitle : "",
-        duration,
-        rpe: rpeRating.toString(),
-        completion,
-        notes,
-        rating: sessionRating.toString(),
-      },
-    });
+  const handleSave = async () => {
+    setErrorMessage(null);
+    try {
+      const result = await logWorkout({
+        activity_date: dateStr,
+        activity_type: ACTIVITY_UI_TO_API[activityType] as any,
+        custom_title: activityType === "Others" ? customTitle : undefined,
+        duration_minutes: parseInt(duration, 10),
+        intensity: rpeRating,
+        completion_status: completion === "Completed" ? "completed" : "partial",
+        notes: notes || undefined,
+        session_rating: sessionRating,
+      }).unwrap();
+
+      router.push({
+        pathname: "/profile/workout-saved",
+        params: {
+          id: result.id,
+          activity_date: result.activity_date,
+          activity_type: result.activity_type,
+          custom_title: result.custom_title ?? "",
+          duration_minutes: String(result.duration_minutes),
+          intensity: String(result.intensity),
+          completion_status: result.completion_status,
+          notes: result.notes ?? "",
+          session_rating: result.session_rating !== null ? String(result.session_rating) : "",
+          reported_limitation: String(result.reported_limitation),
+        },
+      });
+    } catch (e: any) {
+      setErrorMessage(e?.data?.detail ?? "Could not save this workout. Check the fields and try again.");
+    }
   };
 
-  const isFormValid = dateStr.trim().length > 0 && duration.trim().length > 0;
+  const isFormValid = dateStr.trim().length > 0 && duration.trim().length > 0 && Number(duration) > 0;
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
@@ -78,7 +110,7 @@ export default function LogWorkoutScreen() {
           </Text>
           <Text style={[styles.mainTitle, { color: theme.colors.text }]}>Log a workout</Text>
           <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
-            Record the date, activity, duration, and how it felt. Saved for this session only (prototype).
+            Record the date, activity, duration, and how it felt.
           </Text>
         </View>
 
@@ -145,7 +177,7 @@ export default function LogWorkoutScreen() {
         {/* 3. Custom Title */}
         {activityType === "Others" && (
           <View style={styles.fieldContainer}>
-            <Text style={[styles.fieldLabel, { color: theme.colors.text }]}>Custom title (only for "Other")</Text>
+            <Text style={[styles.fieldLabel, { color: theme.colors.text }]}>Custom title (only for "Other") *</Text>
             <View style={[styles.inputBox, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
               <TextInput
                 value={customTitle}
@@ -243,13 +275,13 @@ export default function LogWorkoutScreen() {
               placeholder="Write notes here..."
               placeholderTextColor={theme.colors.textTertiary}
               value={notes}
-              onChangeText={setNotes}
+              onChangeText={(text) => setNotes(text.slice(0, 280))}
               style={[styles.textAreaInput, { color: theme.colors.text }]}
               textAlignVertical="top"
             />
           </View>
           <Text style={[styles.helpText, { color: theme.colors.textTertiary }]}>
-            {notes.length} / 280 · limit flags may create a SCS review item.
+            {notes.length} / 280 · mentioning pain, injury, or a limitation creates a real SCS review item.
           </Text>
         </View>
 
@@ -283,33 +315,43 @@ export default function LogWorkoutScreen() {
           </Text>
         </View>
 
+        {errorMessage && (
+          <Text style={[styles.errorText, { color: theme.colors.dangerText }]}>{errorMessage}</Text>
+        )}
+
         {/* Save button */}
         <View style={styles.submitContainer}>
           <Pressable
             onPress={handleSave}
-            disabled={!isFormValid}
+            disabled={!isFormValid || isLoading || (activityType === "Others" && !customTitle.trim())}
             style={[
               styles.submitButton,
               {
-                backgroundColor: isFormValid ? theme.colors.primary : "#27272A",
+                backgroundColor: isFormValid && !isLoading ? theme.colors.primary : "#27272A",
               },
             ]}
           >
-            <Text style={[styles.submitButtonText, { color: isFormValid ? "#FFFFFF" : theme.colors.textSecondary }]}>
-              Save workout 
-            </Text>
-            <Ionicons
-              name="arrow-up"
-              size={16}
-              color={isFormValid ? "#FFFFFF" : theme.colors.textSecondary}
-            />
+            {isLoading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <>
+                <Text style={[styles.submitButtonText, { color: isFormValid ? "#FFFFFF" : theme.colors.textSecondary }]}>
+                  Save workout
+                </Text>
+                <Ionicons
+                  name="arrow-up"
+                  size={16}
+                  color={isFormValid ? "#FFFFFF" : theme.colors.textSecondary}
+                />
+              </>
+            )}
           </Pressable>
         </View>
 
         {/* Footer */}
         <View style={styles.footerContainer}>
           <Text style={[styles.footerCode, { color: theme.colors.textTertiary }]}>
-            Trace id M-055 · v1 prototype
+            Trace id M-055
           </Text>
         </View>
       </ScrollView>
@@ -474,6 +516,11 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginTop: 6,
     paddingLeft: 2,
+  },
+  errorText: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 12,
   },
   submitContainer: {
     marginTop: 12,

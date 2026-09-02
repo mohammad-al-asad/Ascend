@@ -1,58 +1,35 @@
 import React from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable } from "react-native";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { useTheme } from "../../../utils/useTheme";
 import { CustomHeader } from "../../../components/ui/CustomHeader";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { useGetMyAssessmentsQuery, AssessmentResponse } from "../../../redux/api/assessmentsApi";
+
+const TYPE_ICONS: Record<string, string> = {
+  initial: "barbell-outline",
+  annual_follow_up: "refresh-outline",
+  quarterly_readiness_check: "flash-outline",
+  strength_reassessment: "barbell-outline",
+  cardio_reassessment: "pulse-outline",
+  recovery_baseline: "time-outline",
+};
+
+const TYPE_ICON_COLORS: Record<string, string> = {
+  initial: "#00A3C4",
+  annual_follow_up: "#8B5CF6",
+  quarterly_readiness_check: "#8B5CF6",
+  strength_reassessment: "#10B981",
+  cardio_reassessment: "#EF4444",
+  recovery_baseline: "#F59E0B",
+};
 
 export default function AssessmentsScreen() {
   const theme = useTheme();
   const router = useRouter();
 
-  // Completed assessments list details matching the reference screenshot
-  const completedAssessments = [
-    {
-      id: 1,
-      title: "Initial HPO/H2F assessment",
-      date: "12 Jul 2026 · Above target",
-      badgeText: "Strong",
-      icon: "barbell-outline",
-      iconColor: theme.colors.primary,
-    },
-    {
-      id: 2,
-      title: "Quarterly readiness check",
-      date: "02 Apr 2026 · On target",
-      badgeText: "Steady",
-      icon: "flash-outline",
-      iconColor: "#8B5CF6", // purple
-    },
-    {
-      id: 3,
-      title: "Strength re-assessment",
-      date: "14 Feb 2026 · On target",
-      badgeText: "Steady",
-      icon: "barbell-outline",
-      iconColor: "#10B981", // green
-    },
-    {
-      id: 4,
-      title: "Cardio re-assessment",
-      date: "22 Jan 2026 · Needs focus",
-      badgeText: "Flagged",
-      icon: "pulse-outline",
-      iconColor: theme.colors.dangerText,
-    },
-    {
-      id: 5,
-      title: "Recovery baseline",
-      date: "05 Dec 2025 · Above target",
-      badgeText: "Strong",
-      icon: "time-outline",
-      iconColor: "#F59E0B", // amber
-    },
-  ];
+  const { data, isLoading, isError } = useGetMyAssessmentsQuery();
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
@@ -100,82 +77,145 @@ export default function AssessmentsScreen() {
           </Text>
         </View>
 
-        {/* Completed list section header */}
-        <View style={styles.completedHeaderRow}>
-          <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
-            Completed
-          </Text>
-          <View style={[styles.badgePill, { backgroundColor: "#1C1F26" }]}>
-            <Text style={[styles.badgePillText, { color: theme.colors.textSecondary }]}>
-              Last 5
-            </Text>
+        {isLoading && (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator color={theme.colors.primary} />
           </View>
-        </View>
+        )}
 
-        {/* List card container */}
-        <View style={[styles.listContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
-          {completedAssessments.map((item, idx) => {
-            const isLast = idx === completedAssessments.length - 1;
-            const isFlagged = item.badgeText === "Flagged";
-            return (
-              <View
-                key={item.id}
-                style={[
-                  styles.listItemRow,
-                  {
-                    borderBottomWidth: isLast ? 0 : 1,
-                    borderBottomColor: theme.colors.cardBorder,
-                  },
-                ]}
-              >
-                <View style={styles.listItemLeft}>
-                  <View style={[styles.itemIconWrapper, { backgroundColor: "#1C1F26" }]}>
-                    <Ionicons name={item.icon as any} size={18} color={item.iconColor} />
-                  </View>
-                  <View style={{ marginLeft: 12, flex: 1 }}>
-                    <Text style={[styles.itemTitle, { color: theme.colors.text }]}>
-                      {item.title}
-                    </Text>
-                    <Text style={[styles.itemDate, { color: theme.colors.textSecondary }]}>
-                      {item.date}
-                    </Text>
-                  </View>
-                </View>
-                <View
-                  style={[
-                    styles.outcomeBadge,
-                    {
-                      backgroundColor: isFlagged ? "rgba(239, 68, 68, 0.1)" : "#27272A",
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.outcomeBadgeText,
-                      {
-                        color: isFlagged ? theme.colors.dangerText : theme.colors.text,
-                      },
-                    ]}
-                  >
-                    {item.badgeText}
-                  </Text>
-                </View>
-              </View>
-            );
-          })}
-        </View>
-
-        {/* View all text link */}
-        <Pressable style={styles.viewAllBtn} onPress={() => alert("Load full history...")}>
-          <Text style={[styles.viewAllText, { color: theme.colors.textSecondary }]}>
-            View all
+        {isError && !isLoading && (
+          <Text style={[styles.errorText, { color: theme.colors.dangerText }]}>
+            Could not load your assessments. Pull to refresh or try again shortly.
           </Text>
-        </Pressable>
+        )}
 
-        {/* Disclaimer Footer */}
-        <Text style={[styles.disclaimerText, { color: theme.colors.textTertiary }]}>
-          {"Summaries above are qualitative, never numeric. Aggregated summaries live on `recommendations-summary` for leadership."}
-        </Text>
+        {!isLoading && !isError && data && (
+          <>
+            {data.active.length > 0 && (
+              <>
+                <Text style={[styles.sectionHeading, { color: theme.colors.text, marginBottom: 12 }]}>
+                  Due / scheduled
+                </Text>
+                <View style={[styles.listContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
+                  {data.active.map((item, idx) => {
+                    const isLast = idx === data.active.length - 1;
+                    return (
+                      <View
+                        key={item.id}
+                        style={[
+                          styles.listItemRow,
+                          { borderBottomWidth: isLast ? 0 : 1, borderBottomColor: theme.colors.cardBorder },
+                        ]}
+                      >
+                        <View style={styles.listItemLeft}>
+                          <View style={[styles.itemIconWrapper, { backgroundColor: "#1C1F26" }]}>
+                            <Ionicons
+                              name={(TYPE_ICONS[item.assessment_type] ?? "clipboard-outline") as any}
+                              size={18}
+                              color={TYPE_ICON_COLORS[item.assessment_type] ?? theme.colors.primary}
+                            />
+                          </View>
+                          <View style={{ marginLeft: 12, flex: 1 }}>
+                            <Text style={[styles.itemTitle, { color: theme.colors.text }]}>
+                              {item.display_title}
+                            </Text>
+                            <Text style={[styles.itemDate, { color: theme.colors.textSecondary }]}>
+                              {item.scheduled_date
+                                ? `Scheduled ${item.scheduled_date}`
+                                : item.due_date
+                                  ? `Due ${item.due_date}`
+                                  : "Not yet scheduled"}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={[styles.outcomeBadge, { backgroundColor: "#27272A" }]}>
+                          <Text style={[styles.outcomeBadgeText, { color: theme.colors.text }]}>
+                            {item.status.replace("_", " ")}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              </>
+            )}
+
+            {/* Completed list section header */}
+            <View style={styles.completedHeaderRow}>
+              <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>
+                Completed
+              </Text>
+              <View style={[styles.badgePill, { backgroundColor: "#1C1F26" }]}>
+                <Text style={[styles.badgePillText, { color: theme.colors.textSecondary }]}>
+                  {`Last ${Math.min(data.completed.length, data.completed_total)} of ${data.completed_total}`}
+                </Text>
+              </View>
+            </View>
+
+            {data.completed.length === 0 ? (
+              <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+                No completed assessments yet.
+              </Text>
+            ) : (
+              <View style={[styles.listContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
+                {data.completed.map((item: AssessmentResponse, idx) => {
+                  const isLast = idx === data.completed.length - 1;
+                  const isFlagged = item.result_band === "flagged";
+                  const badgeText = item.result_band
+                    ? item.result_band.charAt(0).toUpperCase() + item.result_band.slice(1)
+                    : "—";
+                  return (
+                    <View
+                      key={item.id}
+                      style={[
+                        styles.listItemRow,
+                        { borderBottomWidth: isLast ? 0 : 1, borderBottomColor: theme.colors.cardBorder },
+                      ]}
+                    >
+                      <View style={styles.listItemLeft}>
+                        <View style={[styles.itemIconWrapper, { backgroundColor: "#1C1F26" }]}>
+                          <Ionicons
+                            name={(TYPE_ICONS[item.assessment_type] ?? "clipboard-outline") as any}
+                            size={18}
+                            color={isFlagged ? theme.colors.dangerText : (TYPE_ICON_COLORS[item.assessment_type] ?? theme.colors.primary)}
+                          />
+                        </View>
+                        <View style={{ marginLeft: 12, flex: 1 }}>
+                          <Text style={[styles.itemTitle, { color: theme.colors.text }]}>
+                            {item.display_title}
+                          </Text>
+                          <Text style={[styles.itemDate, { color: theme.colors.textSecondary }]}>
+                            {`${item.completed_date ?? "—"}${item.result_band_label ? ` · ${item.result_band_label}` : ""}`}
+                          </Text>
+                        </View>
+                      </View>
+                      <View
+                        style={[
+                          styles.outcomeBadge,
+                          { backgroundColor: isFlagged ? "rgba(239, 68, 68, 0.1)" : "#27272A" },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.outcomeBadgeText,
+                            { color: isFlagged ? theme.colors.dangerText : theme.colors.text },
+                          ]}
+                        >
+                          {badgeText}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
+            {/* Disclaimer Footer */}
+            <Text style={[styles.disclaimerText, { color: theme.colors.textTertiary }]}>
+              {"Summaries above are qualitative, never numeric. Aggregated summaries live on `recommendations-summary` for leadership."}
+            </Text>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -220,10 +260,20 @@ const styles = StyleSheet.create({
     height: 6,
     borderRadius: 3,
   },
-  statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  loadingBox: {
+    paddingVertical: 40,
+    alignItems: "center",
+  },
+  errorText: {
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: "center",
+    paddingVertical: 24,
+  },
+  emptyText: {
+    fontSize: 13,
+    lineHeight: 18,
+    marginBottom: 16,
   },
   metaHeaderContainer: {
     marginBottom: 20,
@@ -321,15 +371,6 @@ const styles = StyleSheet.create({
   outcomeBadgeText: {
     fontSize: 12,
     fontWeight: "700",
-  },
-  viewAllBtn: {
-    alignSelf: "flex-start",
-    paddingVertical: 8,
-    marginBottom: 32,
-  },
-  viewAllText: {
-    fontSize: 13,
-    fontWeight: "600",
   },
   disclaimerText: {
     fontSize: 11,

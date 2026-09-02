@@ -1,82 +1,44 @@
-import React, { useState } from "react";
-import { View, Text, StyleSheet, ScrollView, Pressable, Platform, Alert } from "react-native";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import React from "react";
+import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator } from "react-native";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../../utils/useTheme";
 import { CustomHeader } from "../../../components/ui/CustomHeader";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useGetWorkoutsQuery } from "../../../redux/api/workoutsApi";
+
+const ACTIVITY_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
+  strength: "barbell-outline",
+  cardio: "pulse-outline",
+  mobility: "time-outline",
+  recovery: "leaf-outline",
+  other: "ellipsis-horizontal-outline",
+};
+
+const ACTIVITY_LABELS: Record<string, string> = {
+  strength: "Strength",
+  cardio: "Cardio",
+  mobility: "Mobility",
+  recovery: "Recovery",
+  other: "Other",
+};
+
+function formatDate(dateStr: string): string {
+  try {
+    const [year, month, day] = dateStr.split("-");
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return `${day} ${months[parseInt(month, 10) - 1]}`;
+  } catch {
+    return dateStr;
+  }
+}
 
 export default function WorkoutsScreen() {
   const theme = useTheme();
   const router = useRouter();
-  const params = useLocalSearchParams();
 
-  const [workoutsList, setWorkoutsList] = useState([
-    {
-      id: 1,
-      title: "Strength · full body",
-      subtitle: "17 Jul · 55 min · RPE 3 · Hip hinge focus",
-      category: "Strength",
-      icon: "barbell-outline" as keyof typeof Ionicons.glyphMap,
-    },
-    {
-      id: 2,
-      title: "Cardio · steady zone 2",
-      subtitle: "16 Jul · 38 min · RPE 2 · Run, nasal breathing",
-      category: "Cardio",
-      icon: "pulse-outline" as keyof typeof Ionicons.glyphMap,
-    },
-    {
-      id: 3,
-      title: "Mobility · hip + t-spine",
-      subtitle: "15 Jul · 22 min · RPE 1 · 90-90, world's greatest stretch",
-      category: "Mobility",
-      icon: "time-outline" as keyof typeof Ionicons.glyphMap,
-    },
-    {
-      id: 4,
-      title: "Strength · lower",
-      subtitle: "14 Jul · 48 min · RPE 4 · Squat pattern",
-      category: "Strength",
-      icon: "barbell-outline" as keyof typeof Ionicons.glyphMap,
-    },
-    {
-      id: 5,
-      title: "Cardio · intervals",
-      subtitle: "13 Jul · 32 min · RPE 4 · 6 x 400m",
-      category: "Cardio",
-      icon: "pulse-outline" as keyof typeof Ionicons.glyphMap,
-    },
-    {
-      id: 6,
-      title: "Mobility · shoulders",
-      subtitle: "12 Jul · 18 min · RPE 1 · CARs + scapular work",
-      category: "Mobility",
-      icon: "time-outline" as keyof typeof Ionicons.glyphMap,
-    },
-  ]);
-
-  // Dynamically prepend new logged workout if coming back from workout-saved screen
-  React.useEffect(() => {
-    if (params.title && params.subtitle && params.category) {
-      const newWorkout = {
-        id: workoutsList.length + 1 + Math.random(),
-        title: params.title as string,
-        subtitle: params.subtitle as string,
-        category: params.category as string,
-        icon: (params.category === "Cardio"
-          ? "pulse-outline"
-          : params.category === "Mobility"
-          ? "time-outline"
-          : "barbell-outline") as keyof typeof Ionicons.glyphMap,
-      };
-
-      const alreadyExists = workoutsList.some((w) => w.subtitle === newWorkout.subtitle);
-      if (!alreadyExists) {
-        setWorkoutsList((prev) => [newWorkout, ...prev]);
-      }
-    }
-  }, [params]);
+  const { data, isLoading, isError } = useGetWorkoutsQuery();
+  const workouts = data?.workouts ?? [];
 
   const handleLogPress = () => {
     router.push("/profile/log-workout" as any);
@@ -120,54 +82,89 @@ export default function WorkoutsScreen() {
             </Pressable>
           </View>
           <Text style={[styles.description, { color: theme.colors.textSecondary }]}>
-            Your recent training log. Tap "Log" to add a session — saved for this page only (prototype).
+            Your recent training log, last 30 days.
           </Text>
         </View>
 
-        {/* Section Heading with Counter Badge */}
-        <View style={styles.headingRow}>
-          <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>Recent workouts</Text>
-          <View style={styles.counterBadge}>
-            <Text style={[styles.counterBadgeText, { color: theme.colors.textSecondary }]}>
-              Last {workoutsList.length}
-            </Text>
+        {isLoading && (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator color={theme.colors.primary} />
           </View>
-        </View>
+        )}
 
-        {/* Card list of workouts */}
-        <View style={[styles.listContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
-          {workoutsList.map((item, idx) => {
-            const isLast = idx === workoutsList.length - 1;
-            return (
-              <View
-                key={item.id}
-                style={[
-                  styles.listItemRow,
-                  { borderBottomWidth: isLast ? 0 : 1, borderBottomColor: theme.colors.cardBorder },
-                ]}
-              >
-                <View style={styles.listItemLeft}>
-                  <View style={[styles.iconWrapper, { backgroundColor: "#1C1F26" }]}>
-                    <Ionicons name={item.icon} size={18} color={theme.colors.textSecondary} />
-                  </View>
-                  <View style={styles.textContainer}>
-                    <Text style={[styles.itemTitle, { color: theme.colors.text }]}>{item.title}</Text>
-                    <Text style={[styles.itemSubtitle, { color: theme.colors.textSecondary }]}>
-                      {item.subtitle}
-                    </Text>
-                  </View>
-                </View>
+        {isError && !isLoading && (
+          <Text style={[styles.errorText, { color: theme.colors.dangerText }]}>
+            Could not load your workout log. Pull to refresh or try again shortly.
+          </Text>
+        )}
 
-                {/* Right category pill badge */}
-                <View style={styles.categoryBadge}>
-                  <Text style={[styles.categoryBadgeText, { color: theme.colors.text }]}>
-                    {item.category}
-                  </Text>
-                </View>
+        {!isLoading && !isError && (
+          <>
+            {/* Section Heading with Counter Badge */}
+            <View style={styles.headingRow}>
+              <Text style={[styles.sectionHeading, { color: theme.colors.text }]}>Recent workouts</Text>
+              <View style={styles.counterBadge}>
+                <Text style={[styles.counterBadgeText, { color: theme.colors.textSecondary }]}>
+                  {workouts.length}
+                </Text>
               </View>
-            );
-          })}
-        </View>
+            </View>
+
+            {workouts.length === 0 ? (
+              <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
+                No workouts logged in the last 30 days.
+              </Text>
+            ) : (
+              <View style={[styles.listContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
+                {workouts.map((item, idx) => {
+                  const isLast = idx === workouts.length - 1;
+                  const title =
+                    item.activity_type === "other" && item.custom_title
+                      ? item.custom_title
+                      : `${ACTIVITY_LABELS[item.activity_type] ?? item.activity_type}${item.custom_title ? ` · ${item.custom_title}` : ""}`;
+                  const subtitleParts = [
+                    formatDate(item.activity_date),
+                    `${item.duration_minutes} min`,
+                    `RPE ${item.intensity}`,
+                  ];
+                  if (item.notes) subtitleParts.push(item.notes);
+                  return (
+                    <View
+                      key={item.id}
+                      style={[
+                        styles.listItemRow,
+                        { borderBottomWidth: isLast ? 0 : 1, borderBottomColor: theme.colors.cardBorder },
+                      ]}
+                    >
+                      <View style={styles.listItemLeft}>
+                        <View style={[styles.iconWrapper, { backgroundColor: "#1C1F26" }]}>
+                          <Ionicons
+                            name={ACTIVITY_ICONS[item.activity_type] ?? "barbell-outline"}
+                            size={18}
+                            color={item.reported_limitation ? theme.colors.dangerText : theme.colors.textSecondary}
+                          />
+                        </View>
+                        <View style={styles.textContainer}>
+                          <Text style={[styles.itemTitle, { color: theme.colors.text }]}>{title}</Text>
+                          <Text style={[styles.itemSubtitle, { color: theme.colors.textSecondary }]}>
+                            {subtitleParts.join(" · ")}
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* Right category pill badge */}
+                      <View style={styles.categoryBadge}>
+                        <Text style={[styles.categoryBadgeText, { color: theme.colors.text }]}>
+                          {ACTIVITY_LABELS[item.activity_type] ?? item.activity_type}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+          </>
+        )}
 
         {/* RPE guide note footer */}
         <View style={styles.footerContainer}>
@@ -230,20 +227,17 @@ const styles = StyleSheet.create({
   },
   titleRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 10,
+    justifyContent: "space-between",
   },
   mainTitle: {
     fontSize: 28,
     fontWeight: "800",
   },
   logButton: {
-    borderRadius: 16,
     paddingHorizontal: 14,
-    paddingVertical: 6,
-    justifyContent: "center",
-    alignItems: "center",
+    paddingVertical: 8,
+    borderRadius: 20,
   },
   logButtonText: {
     color: "#FFFFFF",
@@ -253,24 +247,37 @@ const styles = StyleSheet.create({
   description: {
     fontSize: 14,
     lineHeight: 20,
+    marginTop: 8,
+  },
+  loadingBox: {
+    paddingVertical: 40,
+    alignItems: "center",
+  },
+  errorText: {
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: "center",
+    paddingVertical: 24,
+  },
+  emptyText: {
+    fontSize: 13,
+    lineHeight: 18,
   },
   headingRow: {
     flexDirection: "row",
+    justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
   },
   sectionHeading: {
     fontSize: 18,
-    fontWeight: "700",
-    marginRight: 8,
+    fontWeight: "800",
   },
   counterBadge: {
-    backgroundColor: "#1C1F26",
-    borderRadius: 12,
     paddingHorizontal: 8,
-    paddingVertical: 2,
-    justifyContent: "center",
-    alignItems: "center",
+    paddingVertical: 4,
+    borderRadius: 6,
+    backgroundColor: "#1C1F26",
   },
   counterBadgeText: {
     fontSize: 11,
@@ -279,13 +286,13 @@ const styles = StyleSheet.create({
   listContainer: {
     borderWidth: 1,
     borderRadius: 16,
-    marginBottom: 24,
+    paddingHorizontal: 16,
   },
   listItemRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    padding: 16,
+    justifyContent: "space-between",
+    paddingVertical: 14,
   },
   listItemLeft: {
     flexDirection: "row",
@@ -295,41 +302,39 @@ const styles = StyleSheet.create({
   iconWrapper: {
     width: 36,
     height: 36,
-    borderRadius: 18,
+    borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 12,
   },
   textContainer: {
+    marginLeft: 12,
     flex: 1,
-    marginRight: 8,
   },
   itemTitle: {
     fontSize: 14,
     fontWeight: "700",
-    marginBottom: 4,
   },
   itemSubtitle: {
     fontSize: 12,
+    marginTop: 2,
   },
   categoryBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
     backgroundColor: "#27272A",
-    borderRadius: 6,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    justifyContent: "center",
-    alignItems: "center",
   },
   categoryBadgeText: {
     fontSize: 11,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   footerContainer: {
+    marginTop: 20,
     alignItems: "center",
-    marginTop: 8,
   },
   footerText: {
-    fontSize: 12,
+    fontSize: 11,
+    lineHeight: 16,
     textAlign: "center",
   },
 });
