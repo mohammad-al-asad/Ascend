@@ -5,9 +5,16 @@ import { logout, setCredentials } from "../slices/authSlice";
 
 const mutex = new Mutex();
 
+// Real single source of truth for the API base URL, shared with
+// chat.tsx's WebSocket connection - see the comment on baseQuery below.
+export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL as string;
+
 const baseQuery = fetchBaseQuery({
-  // baseUrl: process.env.EXPO_PUBLIC_API_URL || "https://monorail-lagoon-pettiness.ngrok-free.dev/api/v1",
-  baseUrl: "https://monorail-lagoon-pettiness.ngrok-free.dev/api/v1",
+  // Real single source of truth - set in app/.env (EXPO_PUBLIC_API_URL).
+  // Was hardcoded here (and separately in chat.tsx's WebSocket URL) - two
+  // places to update by hand every time the tunnel URL changes, and they
+  // could silently drift out of sync with each other and with .env.
+  baseUrl: API_BASE_URL,
   prepareHeaders: (headers, { getState }) => {
     const token = (getState() as RootState).auth.accessToken;
     if (token) {

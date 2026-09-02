@@ -19,6 +19,7 @@ import { CustomBottomSheet } from "../../../components/ui/CustomBottomSheet";
 import * as DocumentPicker from "expo-document-picker";
 import { useAppSelector } from "../../../redux/store";
 import { useGetMyTeamQuery } from "../../../redux/api/supportApi";
+import { API_BASE_URL } from "../../../redux/api/baseApi";
 import {
   useGetThreadWithUserQuery,
   useSendMessageMutation,
@@ -119,8 +120,7 @@ export default function ChatScreen() {
   useEffect(() => {
     if (!accessToken) return;
 
-    const baseApiUrl = "https://monorail-lagoon-pettiness.ngrok-free.dev/api/v1";
-    const wsUrl = `${baseApiUrl.replace(/^http/, "ws")}/messaging/live?token=${encodeURIComponent(accessToken)}`;
+    const wsUrl = `${API_BASE_URL.replace(/^http/, "ws")}/messaging/live?token=${encodeURIComponent(accessToken)}`;
 
     let ws: WebSocket | null = null;
     try {
