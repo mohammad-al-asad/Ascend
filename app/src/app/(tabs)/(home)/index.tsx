@@ -745,13 +745,15 @@ export default function DashboardScreen() {
                     onPress={() => router.push("/(tabs)/support" as any)}
                     style={[styles.teamCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}
                   >
-                    <View style={[styles.teamIconWrapper, { backgroundColor: `${iconColor}1A` }]}>
-                      <Ionicons name={iconName as any} size={20} color={iconColor} />
+                    <View>
+                      <View style={[styles.teamIconWrapper, { backgroundColor: `${iconColor}1A` }]}>
+                        <Ionicons name={iconName as any} size={20} color={iconColor} />
+                      </View>
+                      <Text style={[styles.teamTitle, { color: theme.colors.text }]}>{item.label}</Text>
+                      <Text style={[styles.teamDesc, { color: theme.colors.textSecondary }]} numberOfLines={2}>
+                        {item.description}
+                      </Text>
                     </View>
-                    <Text style={[styles.teamTitle, { color: theme.colors.text }]}>{item.label}</Text>
-                    <Text style={[styles.teamDesc, { color: theme.colors.textSecondary }]} numberOfLines={2}>
-                      {item.description}
-                    </Text>
                     <View style={styles.teamStatusBadge}>
                       <Text style={[styles.teamStatusText, { color: theme.colors.textSecondary }]}>
                         {item.availability_status}
@@ -1310,12 +1312,13 @@ const styles = StyleSheet.create({
     marginVertical: 8,
   },
   legendGrid: {
-    marginTop: 16,
+    marginTop: 18,
     gap: 12,
   },
   legendRow: {
     flexDirection: "row",
     justifyContent: "space-between",
+    gap: 28,
   },
   legendItem: {
     flexDirection: "row",
@@ -1335,6 +1338,7 @@ const styles = StyleSheet.create({
   legendVal: {
     fontSize: 14,
     fontWeight: "700",
+    marginLeft: 8,
   },
   openSupportBtn: {
     flexDirection: "row",
@@ -1345,11 +1349,12 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   teamCard: {
-    width: 160,
+    width: 164,
     borderRadius: 12,
     borderWidth: 1,
     padding: 16,
-    height: 140,
+    paddingBottom: 16,
+    minHeight: 162,
     justifyContent: "space-between",
   },
   teamIconWrapper: {
@@ -1367,14 +1372,15 @@ const styles = StyleSheet.create({
   teamDesc: {
     fontSize: 12,
     lineHeight: 16,
+    marginTop: 4,
   },
   teamStatusBadge: {
     alignSelf: "flex-start",
     backgroundColor: "rgba(255, 255, 255, 0.05)",
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: 6,
-    marginTop: 4,
+    marginTop: 10,
   },
   teamStatusText: {
     fontSize: 10,

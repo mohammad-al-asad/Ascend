@@ -16,6 +16,7 @@ export default function ProfileLayout() {
       <Stack.Screen name="assessments" />
       <Stack.Screen name="activation" />
       <Stack.Screen name="data-use" />
+      <Stack.Screen name="edit" />
     </Stack>
   );
 }
