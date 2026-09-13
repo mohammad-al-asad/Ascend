@@ -22,7 +22,7 @@ const STATUS_LABELS: Record<string, string> = {
   quarantined: "Quarantined",
 };
 
-function formatDateTime(iso: string | null): string {
+function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
   return d.toLocaleString(undefined, {
@@ -138,8 +138,8 @@ export default function RecordDetailScreen() {
               </View>
 
               <View style={styles.detailRow}>
-                <Text style={[styles.detailKey, { color: theme.colors.textTertiary }]}>Status</Text>
-                <View style={[styles.statusBadge, { backgroundColor: `${statusColor}1F` }]}>
+                <Text style={[styles.detailKey, { color: theme.colors.textTertiary }]}>Review status</Text>
+                <View style={[styles.statusBadge, { backgroundColor: `${statusColor}22` }]}>
                   <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
                   <Text style={[styles.statusBadgeText, { color: statusColor }]}>
                     {STATUS_LABELS[data.status] ?? data.status}
@@ -164,75 +164,78 @@ export default function RecordDetailScreen() {
               </View>
             </View>
 
-            {/* Card 2: Access-reason log */}
+            {/* Card 2: Audit Trail */}
             <View style={[styles.cardContainer, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
               <View style={styles.cardHeaderRow}>
-                <Text style={[styles.cardHeaderTitle, { color: theme.colors.textSecondary }]}>Access-reason log</Text>
+                <Text style={[styles.cardHeaderTitle, { color: theme.colors.textSecondary, marginBottom: 0 }]}>
+                  Audit Trail
+                </Text>
                 <View style={styles.counterBadge}>
                   <Text style={[styles.counterBadgeText, { color: theme.colors.textSecondary }]}>
-                    {data.access_log.length}
+                    {data.audit_log?.length ?? 0} events
                   </Text>
                 </View>
               </View>
 
-              {data.access_log.length === 0 ? (
-                <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>No access events yet.</Text>
-              ) : (
-                data.access_log.map((log, idx) => {
-                  const isLast = idx === data.access_log.length - 1;
-                  return (
-                    <View
-                      key={idx}
-                      style={[
-                        styles.logItemBlock,
-                        {
-                          borderBottomWidth: isLast ? 0 : 1,
-                          borderBottomColor: theme.colors.cardBorder,
-                          paddingBottom: isLast ? 0 : 14,
-                          marginBottom: isLast ? 0 : 14,
-                        },
-                      ]}
-                    >
-                      <View style={styles.logItemHeader}>
-                        <Text style={[styles.logItemDate, { color: theme.colors.textTertiary }]}>
-                          {formatDateTime(log.created_at)}
-                        </Text>
-                        <Text style={[styles.logItemActor, { color: theme.colors.textSecondary }]}>
-                          {`${log.actor_name} (${log.actor_role})`}
-                        </Text>
-                      </View>
-                      <Text style={[styles.logItemText, { color: theme.colors.text }]}>
-                        {`${log.action.replace(/_/g, " ")} — ${log.note}`}
+              {(!data.audit_log || data.audit_log.length === 0) && (
+                <Text style={[styles.emptyText, { color: theme.colors.textTertiary }]}>
+                  No events logged yet.
+                </Text>
+              )}
+
+              {data.audit_log?.map((item: any, idx: number) => {
+                const isLast = idx === (data.audit_log?.length ?? 0) - 1;
+                return (
+                  <View
+                    key={item.id ?? idx}
+                    style={[
+                      styles.logItemBlock,
+                      {
+                        borderBottomColor: theme.colors.cardBorder,
+                        paddingBottom: isLast ? 0 : 12,
+                        marginBottom: isLast ? 0 : 12,
+                      },
+                    ]}
+                  >
+                    <View style={styles.logItemHeader}>
+                      <Text style={[styles.logItemDate, { color: theme.colors.textTertiary }]}>
+                        {formatDateTime(item.timestamp)}
+                      </Text>
+                      <Text style={[styles.logItemActor, { color: theme.colors.primary }]}>
+                        {item.actor_name ?? item.actor_role ?? "System"}
                       </Text>
                     </View>
-                  );
-                })
-              )}
+                    <Text style={[styles.logItemText, { color: theme.colors.text }]}>
+                      {item.action_description}
+                    </Text>
+                  </View>
+                );
+              })}
             </View>
 
-            {/* Bottom Actions Row */}
+            {/* Bottom Actions */}
             <View style={styles.bottomButtonsRow}>
               <Pressable
-                onPress={() => router.back()}
-                style={[styles.actionBtn, { backgroundColor: "#27272A" }]}
+                onPress={() => router.push("/profile/uploads" as any)}
+                style={[styles.actionBtn, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder, borderWidth: 1 }]}
               >
-                <Ionicons name="arrow-back" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={styles.actionBtnText}>Back to uploads</Text>
+                <Ionicons name="arrow-back" size={16} color={theme.colors.text} style={{ marginRight: 6 }} />
+                <Text style={[styles.actionBtnText, { color: theme.colors.text }]}>Back to uploads</Text>
               </Pressable>
 
               <Pressable
-                onPress={() => router.push("/(tabs)/(home)" as any)}
-                style={[styles.actionBtn, { backgroundColor: "#27272A" }]}
+                onPress={() => router.push("/profile/add-record" as any)}
+                style={[styles.actionBtn, { backgroundColor: theme.colors.primary }]}
               >
-                <Ionicons name="home-outline" size={16} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={styles.actionBtnText}>Operator home</Text>
+                <Ionicons name="add" size={16} color="#FFFFFF" style={{ marginRight: 4 }} />
+                <Text style={styles.actionBtnText}>Add another</Text>
               </Pressable>
             </View>
 
             {/* Footer */}
             <View style={styles.footerContainer}>
               <Text style={[styles.footerCode, { color: theme.colors.textTertiary }]}>
-                Trace id M-054
+                {`DOC_ID: ${data.id} · RECORD_AUDIT_VERIFIED`}
               </Text>
             </View>
           </>
