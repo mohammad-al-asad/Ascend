@@ -160,12 +160,10 @@ export default function OnboardingScreen() {
     const triggers = (followUpConfig.trigger_options || followUpConfig.triggerOptions || []).map((t: any) =>
       typeof t === "object" ? t.label || t.title || String(t) : String(t)
     );
-    return (
-      triggers.length === 0 ||
-      triggers.includes(option) ||
-      Boolean(followUpConfig.required_when_triggered) ||
-      Boolean(question.follow_up_required)
-    );
+    if (triggers.length === 0) {
+      return true;
+    }
+    return triggers.includes(option);
   };
 
   const handleNextStep = async () => {
@@ -197,7 +195,7 @@ export default function OnboardingScreen() {
             ? Object.keys(roleToggles).some((k) => roleToggles[k])
             : Boolean(tempFollowUpOption);
 
-      // If follow-up is triggered and not yet provided, open the sheet to ask for it
+      // If follow-up is triggered and not yet provided, open the sheet when clicking Next / Choose
       if (isFollowUpTriggered && !hasFollowUpAnswer && !isSheetVisible) {
         setIsSheetVisible(true);
         return;
@@ -205,7 +203,7 @@ export default function OnboardingScreen() {
 
       // Extract follow-up answer if applicable
       let followUpAnswerPayload: any = undefined;
-      if (followUpConfig) {
+      if (followUpConfig && isFollowUpTriggered) {
         if (fType === "text_sheet") {
           followUpAnswerPayload = tempTextValue.trim() || undefined;
         } else if (fType === "role_sheet") {
@@ -315,11 +313,6 @@ export default function OnboardingScreen() {
 
   const handleOptionSelect = (option: string) => {
     setSelectedOption(option);
-
-    // Open follow-up sheet when user chooses an option that triggers follow-up
-    if (checkFollowUpTrigger(currentQuestion, option)) {
-      setIsSheetVisible(true);
-    }
   };
 
   const handleSaveFollowUp = () => {
@@ -449,8 +442,7 @@ export default function OnboardingScreen() {
             <CustomButton
               label={introData?.cta_label || "Begin your readiness baseline"}
               onPress={handleNextStep}
-              icon={<Ionicons name="arrow-forward" size={16} color="#FFFFFF" />}
-              iconPosition="right"
+              icon="➔"
               style={{ width: "100%", marginTop: 24 }}
             />
           </View>
@@ -460,42 +452,42 @@ export default function OnboardingScreen() {
         {currentStep === 1 && (
           <View style={styles.innerContent}>
             <Text style={[styles.stepSubTitle, { color: theme.colors.textSecondary, alignSelf: "flex-start" }]}>
-              FIRST-USE · ONBOARDING
+              {(introData as any)?.consent_eyebrow || "FIRST-USE · PRIVACY NOTICE"}
             </Text>
 
-            <Text style={[styles.stepTitle, { color: theme.colors.text, alignSelf: "flex-start" }]}>Before we begin</Text>
+            <Text style={[styles.stepTitle, { color: theme.colors.text, alignSelf: "flex-start" }]}>
+              {(introData as any)?.consent_title || "Before we begin"}
+            </Text>
+
             <Text
               style={[
                 styles.stepDesc,
                 { color: theme.colors.textSecondary, alignSelf: "flex-start", textAlign: "left", paddingHorizontal: 0 },
               ]}
             >
-              Two short confirmations before your baseline questions begin.
+              {(introData as any)?.consent_summary ||
+                introData?.privacy_summary ||
+                "Ascend is a unit-level physical readiness and performance tracking application. Please review your consent choices below."}
             </Text>
 
-            {/* Privacy Card */}
+            {/* Privacy Summaries Cards */}
             <View
               style={[
                 styles.card,
                 { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder },
               ]}
             >
-              <Text style={[styles.cardHeaderTag, { color: theme.colors.textTertiary }]}>PRIVACY SUMMARY</Text>
-              <Text style={[styles.cardBodyText, { color: theme.colors.text, fontWeight: "700" }]}>
-                {introData?.privacy_summary ||
-                  "Your answers are visible to your assigned providers. You control optional pathways in My team."}
+              <Text style={[styles.cardHeaderTag, { color: theme.colors.primary }]}>
+                {(introData as any)?.privacy_card_header || "SYSTEM BOUNDARY"}
+              </Text>
+              <Text style={[styles.cardBodyText, { color: theme.colors.text }]}>
+                {(introData as any)?.privacy_card_body ||
+                  "Ascend is not an official health record system. Your responses are not shared beyond authorized unit coaches and clinicians."}
               </Text>
             </View>
 
-            {/* Switch Confirmations */}
-            <View
-              style={[
-                styles.card,
-                { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder },
-              ]}
-            >
-              <Text style={[styles.cardHeaderTag, { color: theme.colors.textTertiary }]}>CONFIRMATIONS</Text>
-
+            {/* Switches */}
+            <View style={{ width: "100%", gap: 16, marginVertical: 12 }}>
               <CustomSwitch
                 label={introData?.consent_required_label || "Data-use consent"}
                 description={
