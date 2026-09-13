@@ -35,11 +35,21 @@ export interface ProfileResponse {
     last_login_at: string;
   };
   member_since: string;
+  date_of_birth: string | null;
+  sex: "M" | "F" | "prefer_not_to_say" | null;
+  height_in: number | null;
+  weight_lb: number | null;
+  age: number | null;
+  bmi: number | null;
 }
 
 export interface ProfileSettingsRequest {
   theme_preference?: "light" | "dark";
   notifications_enabled?: boolean;
+  date_of_birth?: string | null;
+  sex?: "M" | "F" | "prefer_not_to_say" | null;
+  height_in?: number | null;
+  weight_lb?: number | null;
 }
 
 export interface SignInEvent {

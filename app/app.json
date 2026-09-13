@@ -1,26 +1,30 @@
 {
   "expo": {
-    "name": "Ascend",
+    "name": "Ascend Human Performance",
     "slug": "ascend",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/app/icon.png",
     "scheme": "ascend",
     "userInterfaceStyle": "automatic",
     "ios": {
-      "icon": "./assets/expo.icon"
+      "icon": "./assets/app/icon.png",
+      "bundleIdentifier": "com.dominionperformance.ascend",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/app/logo.png"
+        "foregroundImage": "./assets/app/icon.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.ascend.app"
+      "package": "com.dominionperformance.ascend"
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/app/icon.png"
     },
     "plugins": [
       "expo-router",
@@ -41,7 +45,7 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "fcd5027f-7556-4803-82ce-8b0b3748aaa8"
+        "projectId": "b225a221-14d8-460c-b198-9735f81f2c43"
       }
     }
   }
