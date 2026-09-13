@@ -62,6 +62,36 @@ export default function ProfileScreen() {
     return parts[0][0].toUpperCase();
   };
 
+  const formatSex = (sex?: string | null) => {
+    if (!sex) return "Not provided";
+    if (sex === "M") return "Male";
+    if (sex === "F") return "Female";
+    if (sex === "prefer_not_to_say") return "Prefer not to say";
+    return sex;
+  };
+
+  const formatHeight = (heightIn?: number | null) => {
+    if (heightIn == null) return "Not provided";
+    const feet = Math.floor(heightIn / 12);
+    const inches = heightIn % 12;
+    return `${heightIn} in (${feet}' ${inches}")`;
+  };
+
+  const formatWeight = (weightLb?: number | null) => {
+    if (weightLb == null) return "Not provided";
+    return `${weightLb} lbs`;
+  };
+
+  const formatAge = (age?: number | null) => {
+    if (age == null) return "Not provided";
+    return `${age} yrs`;
+  };
+
+  const formatBmi = (bmi?: number | null) => {
+    if (bmi == null) return "Not provided";
+    return `${bmi}`;
+  };
+
   const renderIdentityRow = (label: string, value: string) => {
     return (
       <View style={[styles.itemRow, { borderBottomColor: theme.colors.cardBorder }]}>
@@ -99,7 +129,7 @@ export default function ProfileScreen() {
           </Text>
           <Text style={[styles.titleText, { color: theme.colors.text }]}>Profile & settings</Text>
           <Text style={[styles.descText, { color: theme.colors.textSecondary }]}>
-            Theme and notifications are the only locally controllable settings on this surface.
+            Biometrics, theme, and notification preferences for your account.
           </Text>
         </View>
 
@@ -148,6 +178,47 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* Biometrics Category section */}
+        <View style={styles.categoryHeaderRow}>
+          <Text style={[styles.categoryHeader, { color: theme.colors.textSecondary, marginTop: 0, marginBottom: 0 }]}>
+            BIOMETRICS
+          </Text>
+          <Pressable
+            onPress={() => router.push("/profile/edit" as any)}
+            hitSlop={8}
+            style={styles.editHeaderButton}
+          >
+            <Ionicons name="create-outline" size={14} color={theme.colors.primary} style={{ marginRight: 4 }} />
+            <Text style={[styles.editHeaderText, { color: theme.colors.primary }]}>Edit</Text>
+          </Pressable>
+        </View>
+        <View style={[styles.sectionCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
+          {renderIdentityRow("Date of birth", profile?.date_of_birth || "Not provided")}
+          {renderIdentityRow("Sex", formatSex(profile?.sex))}
+          {renderIdentityRow("Height", formatHeight(profile?.height_in))}
+          {renderIdentityRow("Weight", formatWeight(profile?.weight_lb))}
+          {renderIdentityRow("Age (server)", formatAge(profile?.age))}
+          <View style={[styles.itemRow, { borderBottomColor: theme.colors.cardBorder }]}>
+            <Text style={[styles.rowLabel, { color: theme.colors.text }]}>BMI (server)</Text>
+            <View style={styles.rowRight}>
+              <Text style={[styles.rowValue, { color: theme.colors.textSecondary }]}>
+                {formatBmi(profile?.bmi)}
+              </Text>
+            </View>
+          </View>
+          <Pressable
+            onPress={() => router.push("/profile/edit" as any)}
+            style={styles.itemRowNoBorder}
+          >
+            <Text style={[styles.rowLabel, { color: theme.colors.primary, fontWeight: "600" }]}>
+              Edit biometrics
+            </Text>
+            <View style={styles.rowRight}>
+              <Ionicons name="chevron-forward" size={14} color={theme.colors.primary} />
+            </View>
+          </Pressable>
+        </View>
+
         {/* Preferences section */}
         <Text style={[styles.categoryHeader, { color: theme.colors.textSecondary }]}>PREFERENCES</Text>
         <View style={[styles.sectionCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
@@ -183,8 +254,7 @@ export default function ProfileScreen() {
         <View style={[styles.sectionCard, { backgroundColor: theme.colors.card, borderColor: theme.colors.cardBorder }]}>
           <Pressable
             onPress={() => router.push("/profile/records" as any)}
-            style={[styles.itemRowNoBorder, { flexDirection: "row", alignItems: "center" }]}
-          >
+            style={[styles.itemRowNoBorder, { flexDirection: "row", alignItems: "center" }]}>
             <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
               <Ionicons name="folder-outline" size={16} color={theme.colors.textSecondary} style={{ marginRight: 10 }} />
               <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Records home</Text>
@@ -202,8 +272,7 @@ export default function ProfileScreen() {
           {/* Data use summary */}
           <Pressable
             onPress={() => router.push("/profile/data-use" as any)}
-            style={[styles.itemRow, { borderBottomColor: theme.colors.cardBorder }]}
-          >
+            style={[styles.itemRow, { borderBottomColor: theme.colors.cardBorder }]}>
             <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Data-use summary</Text>
             <View style={styles.rowRight}>
               <Text style={[styles.linkValue, { color: theme.colors.textSecondary, marginRight: 4 }]}>Read</Text>
@@ -214,8 +283,7 @@ export default function ProfileScreen() {
           {/* Privacy notice */}
           <Pressable
             onPress={() => router.push("/auth/privacy" as any)}
-            style={[styles.itemRow, { borderBottomColor: theme.colors.cardBorder }]}
-          >
+            style={[styles.itemRow, { borderBottomColor: theme.colors.cardBorder }]}>
             <Text style={[styles.rowLabel, { color: theme.colors.text }]}>Privacy notice</Text>
             <View style={styles.rowRight}>
               <Text style={[styles.linkValue, { color: theme.colors.textSecondary, marginRight: 4 }]}>Read</Text>
@@ -333,6 +401,21 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: 10,
     marginTop: 16,
+  },
+  categoryHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginTop: 16,
+    marginBottom: 10,
+  },
+  editHeaderButton: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  editHeaderText: {
+    fontSize: 12,
+    fontWeight: "700",
   },
   sectionCard: {
     borderWidth: 1,
