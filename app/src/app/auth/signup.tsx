@@ -5,9 +5,9 @@ import {
   StyleSheet,
   ScrollView,
   Pressable,
-  Image,
   TextInput,
 } from "react-native";
+import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { useRegisterMutation } from "../../redux/api/authApi";
 import { useTheme } from "../../utils/useTheme";
@@ -127,8 +127,8 @@ export default function SignUpScreen() {
               >
                 <Image
                   source={require("../../../public/GoogleIcon.svg")}
-                  style={styles.logoImage}
-                  resizeMode="contain"
+                  style={styles.googleIcon}
+                  contentFit="contain"
                 />
                 <Text style={styles.googleBtnText}>Continue with Google</Text>
               </Pressable>
@@ -459,6 +459,11 @@ const styles = StyleSheet.create({
     height: 48,
     borderRadius: 12,
     width: "100%",
+  },
+  googleIcon: {
+    width: 20,
+    height: 20,
+    marginRight: 10,
   },
   googleBtnText: {
     color: "#000000",
