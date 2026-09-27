@@ -26,6 +26,28 @@ export const authApi = baseApi.injectEndpoints({
         }
       },
     }),
+    googleLogin: builder.mutation<any, { id_token: string }>({
+      query: (body) => ({
+        url: "/auth/google",
+        method: "POST",
+        body,
+      }),
+      async onQueryStarted(arg, { dispatch, queryFulfilled }) {
+        try {
+          const { data } = await queryFulfilled;
+          await setTokens(data.access_token, data.refresh_token, data.user);
+          dispatch(
+            setCredentials({
+              user: data.user,
+              accessToken: data.access_token,
+              refreshToken: data.refresh_token,
+            })
+          );
+        } catch (error) {
+          // Handled by the caller via unwrap()
+        }
+      },
+    }),
     register: builder.mutation<any, any>({
       query: (userData) => ({
         url: "/auth/register",
@@ -63,6 +85,7 @@ export const authApi = baseApi.injectEndpoints({
 
 export const {
   useLoginMutation,
+  useGoogleLoginMutation,
   useRegisterMutation,
   useForgotPasswordMutation,
   useVerifyResetCodeMutation,
