@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { CustomButton } from "../../components/ui/CustomButton";
 import { useAppDispatch } from "../../redux/store";
 import { setCredentials } from "../../redux/slices/authSlice";
+import { useGoogleSignIn } from "../../utils/useGoogleSignIn";
 
 export default function SignInScreen() {
   const theme = useTheme();
@@ -26,6 +27,7 @@ export default function SignInScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [login, { isLoading }] = useLoginMutation();
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const { signInWithGoogle, isGoogleLoading, googleError, googleReady } = useGoogleSignIn();
 
   const handleEmailSignIn = async () => {
     setErrorMsg(null);
@@ -56,10 +58,6 @@ export default function SignInScreen() {
         setErrorMsg("An unexpected error occurred.");
       }
     }
-  };
-
-  const handleGoogleSignIn = () => {
-    handleEmailSignIn();
   };
 
   return (
@@ -113,7 +111,8 @@ export default function SignInScreen() {
               styles.googleBtn,
               pressed && { opacity: 0.8 }
             ]}
-            onPress={() => { }}
+            disabled={!googleReady || isGoogleLoading}
+            onPress={signInWithGoogle}
           >
             <Image
               source={require("../../../public/GoogleIcon.svg")}
@@ -129,9 +128,9 @@ export default function SignInScreen() {
             <View style={[styles.separatorLine, { backgroundColor: theme.colors.cardBorder }]} />
           </View>
 
-          {errorMsg && (
+          {(errorMsg || googleError) && (
             <View style={styles.errorBanner}>
-              <Text style={styles.errorText}>{errorMsg}</Text>
+              <Text style={styles.errorText}>{errorMsg || googleError}</Text>
             </View>
           )}
 
