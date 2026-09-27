@@ -54,6 +54,7 @@ function AppNavigator() {
         {/* Unauthenticated Routes */}
         <Stack.Protected guard={!isAuthenticated}>
           <Stack.Screen name="auth" />
+          <Stack.Screen name="oauthredirect" />
         </Stack.Protected>
 
         {/* Authenticated Onboarding Flow */}
@@ -79,4 +80,3 @@ export default function RootLayout() {
     </Provider>
   );
 }
-
