@@ -5,7 +5,10 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/app/icon.png",
-    "scheme": "ascend",
+    "scheme": [
+      "ascend",
+      "com.dominionperformance.ascend"
+    ],
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/app/icon.png",
@@ -36,7 +39,8 @@
           "imageWidth": 76
         }
       ],
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,

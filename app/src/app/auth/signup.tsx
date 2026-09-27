@@ -13,6 +13,7 @@ import { useRegisterMutation } from "../../redux/api/authApi";
 import { useTheme } from "../../utils/useTheme";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { CustomButton } from "../../components/ui/CustomButton";
+import { useGoogleSignIn } from "../../utils/useGoogleSignIn";
 
 export default function SignUpScreen() {
   const theme = useTheme();
@@ -23,6 +24,7 @@ export default function SignUpScreen() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const { signInWithGoogle, isGoogleLoading, googleError, googleReady } = useGoogleSignIn();
   const [accountCreated, setAccountCreated] = useState(false);
 
   const [register, { isLoading }] = useRegisterMutation();
@@ -123,7 +125,8 @@ export default function SignUpScreen() {
                   styles.googleBtn,
                   pressed && { opacity: 0.8 }
                 ]}
-                onPress={() => { }}
+                disabled={!googleReady || isGoogleLoading}
+                onPress={signInWithGoogle}
               >
                 <Image
                   source={require("../../../public/GoogleIcon.svg")}
@@ -139,9 +142,9 @@ export default function SignUpScreen() {
                 <View style={[styles.separatorLine, { backgroundColor: theme.colors.cardBorder }]} />
               </View>
 
-              {errorMsg && (
+              {(errorMsg || googleError) && (
                 <View style={styles.errorBanner}>
-                  <Text style={styles.errorText}>{errorMsg}</Text>
+                  <Text style={styles.errorText}>{errorMsg || googleError}</Text>
                 </View>
               )}
 
